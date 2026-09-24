@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Package, ShoppingCart, Warehouse, Users, type LucideIcon } from 'lucide-react';
+import { Layers, Package, Warehouse, Users, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { buttonClasses } from '../../components/ui/Button';
+import { apiClient } from '../../lib/apiClient';
 import { useAuth } from '../../context/AuthContext';
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -32,26 +33,61 @@ interface StatCard {
   icon: LucideIcon;
 }
 
-// ─── Datos simulados (se reemplazarán con llamadas reales en HU analítico) ───
-
-const STAT_CARDS: StatCard[] = [
-  { label: 'Productos activos', value: '—',  sublabel: 'en catálogo',         icon: Package },
-  { label: 'Pedidos hoy',       value: '—',  sublabel: 'desde medianoche',     icon: ShoppingCart },
-  { label: 'Stock bajo',        value: '—',  sublabel: 'productos con alerta', icon: Warehouse },
-  { label: 'Colaboradores',     value: '—',  sublabel: 'usuarios internos',    icon: Users },
-];
+interface SystemStatus {
+  categoriasActivas: number;
+  productosActivos: number;
+  productosStockBajo: number;
+}
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export function DashboardPage(): React.ReactElement {
   const { usuario } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const [status, setStatus] = useState<SystemStatus | null>(null);
 
-  // Simula la carga de datos del dashboard (500 ms)
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
+    let active = true;
+    apiClient
+      .get<SystemStatus>('/api/v1/status')
+      .then(json => {
+        if (active && json.success) setStatus(json.data);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
+
+  const statCards: StatCard[] = [
+    {
+      label: 'Productos activos',
+      value: status ? String(status.productosActivos) : '—',
+      sublabel: 'en catálogo',
+      icon: Package,
+    },
+    {
+      label: 'Categorías activas',
+      value: status ? String(status.categoriasActivas) : '—',
+      sublabel: 'en el árbol',
+      icon: Layers,
+    },
+    {
+      label: 'Stock bajo',
+      value: status ? String(status.productosStockBajo) : '—',
+      sublabel: 'productos con alerta',
+      icon: Warehouse,
+    },
+    {
+      label: 'Colaboradores',
+      value: '—',
+      sublabel: 'usuarios internos',
+      icon: Users,
+    },
+  ];
 
   return (
     <div>
@@ -81,7 +117,7 @@ export function DashboardPage(): React.ReactElement {
         <div className="grid grid-cols-2 gap-md sm:grid-cols-4">
           {isLoading
             ? Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
-            : STAT_CARDS.map(card => {
+            : statCards.map(card => {
                 const Icon = card.icon;
                 return (
                   <div

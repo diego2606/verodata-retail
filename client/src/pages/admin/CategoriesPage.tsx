@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   AlertTriangle,
+  CornerDownRight,
   Pencil,
   Plus,
   Power,
@@ -21,6 +22,8 @@ import { Select, type SelectOption } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { apiClient, ApiClientError } from '../../lib/apiClient';
+import { ATRIBUTO_KEYS, ATRIBUTO_LABELS, SKU_SEGMENTOS } from '../../lib/atributos';
+import { generarSkuEstructurado } from '../../lib/sku';
 import type {
   ActualizarCategoriaPayload,
   CategoriaItem,
@@ -33,9 +36,57 @@ const categoriaSchema = z.object({
   nombre: z.string().trim().min(2, 'Mínimo 2 caracteres').max(100),
   slug: z.string().trim().max(120).optional().or(z.literal('')),
   descripcion: z.string().trim().max(500, 'Máximo 500 caracteres').optional().or(z.literal('')),
+  // '' = categoría raíz; string numérico = id del padre.
+  categoria_padre_id: z.string(),
 });
 
 type CategoriaFormValues = z.infer<typeof categoriaSchema>;
+
+/** IDs de una categoría y todos sus descendientes (para no ofrecerse como padre). */
+function idsConDescendientes(categorias: CategoriaItem[], raizId: number): Set<number> {
+  const resultado = new Set<number>([raizId]);
+  let agregado = true;
+  while (agregado) {
+    agregado = false;
+    for (const c of categorias) {
+      if (c.categoria_padre_id !== null && resultado.has(c.categoria_padre_id) && !resultado.has(c.id)) {
+        resultado.add(c.id);
+        agregado = true;
+      }
+    }
+  }
+  return resultado;
+}
+
+/** Ordena la lista plana en orden jerárquico (padre y luego hijos) con su profundidad. */
+function ordenarJerarquia(categorias: CategoriaItem[]): Array<{ categoria: CategoriaItem; depth: number }> {
+  const porPadre = new Map<number | null, CategoriaItem[]>();
+  for (const c of categorias) {
+    const key = c.categoria_padre_id;
+    const lista = porPadre.get(key) ?? [];
+    lista.push(c);
+    porPadre.set(key, lista);
+  }
+  for (const lista of porPadre.values()) {
+    lista.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+  const salida: Array<{ categoria: CategoriaItem; depth: number }> = [];
+  const visitados = new Set<number>();
+  const recorrer = (padreId: number | null, depth: number): void => {
+    for (const c of porPadre.get(padreId) ?? []) {
+      if (visitados.has(c.id)) continue;
+      visitados.add(c.id);
+      salida.push({ categoria: c, depth });
+      recorrer(c.id, depth + 1);
+    }
+  };
+  recorrer(null, 0);
+  // Categorías huérfanas (padre fuera del filtro actual)
+  for (const c of categorias) {
+    if (!visitados.has(c.id)) salida.push({ categoria: c, depth: 0 });
+  }
+  return salida;
+}
 
 const ESTADO_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'Todos los estados' },
@@ -64,7 +115,7 @@ function EstadoBadge({ activo }: { activo: boolean }): React.ReactElement {
   );
 }
 
-const COLUMNS = ['Nombre', 'Slug', 'Productos', 'Estado'] as const;
+const COLUMNS = ['Categoría', 'Slug', 'Productos', 'Estado'] as const;
 
 function TableHeader(): React.ReactElement {
   return (
@@ -168,6 +219,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }): React.ReactElement {
 
 interface CategoryModalProps {
   categoria: CategoriaItem | null;
+  categorias: CategoriaItem[];
   onClose: () => void;
   onSaved: (message: string) => void;
 }
@@ -183,16 +235,66 @@ function FieldError({ message }: { message?: string }): React.ReactElement | nul
 
 const labelClass = 'block text-xs font-medium text-ink mb-xs';
 
-function CategoryModal({ categoria, onClose, onSaved }: CategoryModalProps): React.ReactElement {
+/** Atributos de ejemplo para previsualizar la plantilla de SKU. */
+const SKU_EJEMPLO: Record<string, string> = {
+  BRAND: 'Apple',
+  MODEL: '15PM',
+  STORAGE_CAPACITY: '256 GB',
+  COLOR: 'Negro',
+  SIZE: '42',
+  CAPACITY: '1 L',
+  GENDER: 'Hombre',
+  LINE: 'Redmi',
+};
+
+/** Parsea "CATEGORIA, BRAND, MODEL" a tokens válidos, sin repetir ni vacíos. */
+function parseSegmentos(texto: string): string[] {
+  const vistos = new Set<string>();
+  const out: string[] = [];
+  for (const raw of texto.split(',')) {
+    const token = raw.trim().toUpperCase();
+    if (!token) continue;
+    if (!(SKU_SEGMENTOS as readonly string[]).includes(token)) continue;
+    if (vistos.has(token)) continue;
+    vistos.add(token);
+    out.push(token);
+  }
+  return out;
+}
+
+function CategoryModal({ categoria, categorias, onClose, onSaved }: CategoryModalProps): React.ReactElement {
   const editing = categoria !== null;
   const [serverError, setServerError] = useState<string | null>(null);
   const [slugTouched, setSlugTouched] = useState(editing);
+  const [defineAtributos, setDefineAtributos] = useState(categoria?.atributos_permitidos != null);
+  const [atributosSeleccionados, setAtributosSeleccionados] = useState<string[]>(
+    categoria?.atributos_permitidos ?? []
+  );
+  const [valoresAtributos, setValoresAtributos] = useState<Record<string, string>>(
+    Object.fromEntries(
+      Object.entries(categoria?.atributos_valores ?? {}).map(([key, valores]) => [
+        key,
+        valores.join(', '),
+      ])
+    )
+  );
+  const [skuPrefijo, setSkuPrefijo] = useState(categoria?.sku_prefijo ?? '');
+  const [skuSegmentosTexto, setSkuSegmentosTexto] = useState(
+    (categoria?.sku_segmentos ?? []).join(', ')
+  );
+
+  const segmentosParseados = parseSegmentos(skuSegmentosTexto);
+  const skuPreview =
+    segmentosParseados.length > 0
+      ? generarSkuEstructurado(segmentosParseados, skuPrefijo, SKU_EJEMPLO)
+      : '';
 
   const {
     register,
     handleSubmit,
     watch,
     setValue,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<CategoriaFormValues>({
     resolver: zodResolver(categoriaSchema),
@@ -200,10 +302,37 @@ function CategoryModal({ categoria, onClose, onSaved }: CategoryModalProps): Rea
       nombre: categoria?.nombre ?? '',
       slug: categoria?.slug ?? '',
       descripcion: categoria?.descripcion ?? '',
+      categoria_padre_id: categoria?.categoria_padre_id != null ? String(categoria.categoria_padre_id) : '',
     },
   });
 
   const nombreValue = watch('nombre');
+  const padreSeleccionadoId = watch('categoria_padre_id');
+
+  const toggleAtributo = (key: string): void => {
+    setAtributosSeleccionados(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
+  // Atributos heredados del padre seleccionado (efectivos ya resueltos por la API).
+  const heredados = useMemo(() => {
+    if (!padreSeleccionadoId) return null;
+    return categorias.find(c => String(c.id) === padreSeleccionadoId)?.atributos_sugeridos ?? [];
+  }, [categorias, padreSeleccionadoId]);
+
+  // Opciones de padre: todas menos la categoría editada y sus descendientes (evita ciclos).
+  // Se muestran en orden jerárquico e indentadas para distinguir categorías de subcategorías.
+  const padreOptions: SelectOption[] = useMemo(() => {
+    const excluir = editing && categoria ? idsConDescendientes(categorias, categoria.id) : new Set<number>();
+    const opciones = ordenarJerarquia(categorias)
+      .filter(({ categoria: c }) => !excluir.has(c.id))
+      .map(({ categoria: c, depth }) => ({
+        value: String(c.id),
+        label: `${'— '.repeat(depth)}${c.nombre}`,
+      }));
+    return [{ value: '', label: '— Sin categoría padre (raíz) —' }, ...opciones];
+  }, [categorias, editing, categoria]);
 
   // Auto-genera el slug desde el nombre mientras no se edite manualmente (CA02)
   useEffect(() => {
@@ -213,6 +342,29 @@ function CategoryModal({ categoria, onClose, onSaved }: CategoryModalProps): Rea
   const onSubmit = async (values: CategoriaFormValues): Promise<void> => {
     setServerError(null);
     const slug = values.slug ? values.slug : undefined;
+    const padreId = values.categoria_padre_id ? Number(values.categoria_padre_id) : null;
+
+    // HU031: los atributos usados en la plantilla de SKU deben estar permitidos.
+    const tokensAtributo = segmentosParseados.filter(t => t !== 'CATEGORIA');
+    const atributosPermitidos = defineAtributos
+      ? Array.from(new Set([...atributosSeleccionados, ...tokensAtributo]))
+      : null;
+    const skuPrefijoPayload = skuPrefijo.trim() ? skuPrefijo.trim().toUpperCase() : null;
+    const skuSegmentosPayload = segmentosParseados.length > 0 ? segmentosParseados : null;
+
+    const atributosValores: Record<string, string[]> | null = defineAtributos
+      ? (() => {
+          const out: Record<string, string[]> = {};
+          for (const key of atributosSeleccionados) {
+            const lista = (valoresAtributos[key] ?? '')
+              .split(',')
+              .map(v => v.trim())
+              .filter(Boolean);
+            if (lista.length > 0) out[key] = lista;
+          }
+          return out;
+        })()
+      : null;
 
     try {
       if (editing && categoria) {
@@ -220,6 +372,11 @@ function CategoryModal({ categoria, onClose, onSaved }: CategoryModalProps): Rea
           nombre: values.nombre,
           slug,
           descripcion: values.descripcion ?? '',
+          categoria_padre_id: padreId,
+          atributos_permitidos: atributosPermitidos,
+          atributos_valores: atributosValores,
+          sku_prefijo: skuPrefijoPayload,
+          sku_segmentos: skuSegmentosPayload,
         };
         const json = await apiClient.patch<CategoriaItem>(
           `/api/v1/categories/${categoria.id}`,
@@ -235,6 +392,11 @@ function CategoryModal({ categoria, onClose, onSaved }: CategoryModalProps): Rea
           nombre: values.nombre,
           slug,
           descripcion: values.descripcion || undefined,
+          categoria_padre_id: padreId,
+          atributos_permitidos: atributosPermitidos,
+          atributos_valores: atributosValores,
+          sku_prefijo: skuPrefijoPayload,
+          sku_segmentos: skuSegmentosPayload,
         };
         const json = await apiClient.post<CategoriaItem>('/api/v1/categories', payload);
         if (!json.success) {
@@ -254,7 +416,7 @@ function CategoryModal({ categoria, onClose, onSaved }: CategoryModalProps): Rea
     <Modal
       onClose={onClose}
       labelledBy="categoria-modal-titulo"
-      panelClassName="max-w-md"
+      panelClassName="max-w-lg"
     >
       <div className="mb-lg flex items-center justify-between">
         <div className="flex items-center gap-sm">
@@ -306,6 +468,28 @@ function CategoryModal({ categoria, onClose, onSaved }: CategoryModalProps): Rea
         </div>
 
         <div>
+          <label htmlFor="categoria_padre_id" className={labelClass}>
+            Categoría padre <span className="text-ink-faint">(opcional)</span>
+          </label>
+          <Controller
+            name="categoria_padre_id"
+            control={control}
+            render={({ field }) => (
+              <Select
+                id="categoria_padre_id"
+                value={field.value}
+                onChange={field.onChange}
+                options={padreOptions}
+                aria-label="Categoría padre"
+              />
+            )}
+          />
+          <p className="mt-xs text-xs text-ink-mute">
+            Déjalo en raíz para una categoría principal; elige una padre para crear una subcategoría.
+          </p>
+        </div>
+
+        <div>
           <label htmlFor="descripcion" className={labelClass}>
             Descripción <span className="text-ink-faint">(opcional)</span>
           </label>
@@ -317,6 +501,118 @@ function CategoryModal({ categoria, onClose, onSaved }: CategoryModalProps): Rea
           />
           <FieldError message={errors.descripcion?.message} />
         </div>
+
+        <fieldset className="rounded-sm border border-hairline-cool bg-canvas-soft p-sm">
+          <legend className="px-xs text-xs font-medium text-ink">Atributos de variante</legend>
+          <div className="flex items-start justify-between gap-sm">
+            <p className="text-xs text-ink-mute">
+              Define qué atributos (color, talla, …) acepta esta categoría.
+            </p>
+            <Button
+              type="button"
+              variant={defineAtributos ? 'secondary' : 'primary'}
+              size="sm"
+              aria-pressed={defineAtributos}
+              onClick={() => setDefineAtributos(v => !v)}
+            >
+              {defineAtributos ? 'Usar herencia' : 'Definir propios'}
+            </Button>
+          </div>
+          {defineAtributos ? (
+            <>
+              <div className="mt-sm flex flex-wrap gap-xs">
+                {ATRIBUTO_KEYS.map(key => {
+                  const activo = atributosSeleccionados.includes(key);
+                  return (
+                    <Button
+                      key={key}
+                      type="button"
+                      size="sm"
+                      variant={activo ? 'primary' : 'secondary'}
+                      aria-pressed={activo}
+                      onClick={() => toggleAtributo(key)}
+                    >
+                      {ATRIBUTO_LABELS[key]}
+                    </Button>
+                  );
+                })}
+              </div>
+
+              {atributosSeleccionados.length > 0 && (
+                <div className="mt-sm space-y-xs">
+                  <p className="text-xs text-ink-mute">
+                    Valores sugeridos (se muestran como atajos al crear el producto):
+                  </p>
+                  {atributosSeleccionados.map(key => (
+                    <div key={key} className="flex items-center gap-sm">
+                      <span className="w-28 shrink-0 text-xs text-ink-mute">
+                        {ATRIBUTO_LABELS[key]}
+                      </span>
+                      <Input
+                        value={valoresAtributos[key] ?? ''}
+                        onChange={e =>
+                          setValoresAtributos(prev => ({ ...prev, [key]: e.target.value }))
+                        }
+                        placeholder="Separados por coma (ej. Negro, Blanco)"
+                        aria-label={`Valores sugeridos para ${ATRIBUTO_LABELS[key]}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="mt-sm text-xs text-ink-mute">
+              {heredados === null
+                ? 'Sin categoría padre: se usarán los atributos sugeridos automáticamente.'
+                : heredados.length > 0
+                  ? `Hereda del padre: ${heredados.map(k => ATRIBUTO_LABELS[k] ?? k).join(', ')}.`
+                  : 'El padre no define atributos; se usarán los sugeridos automáticamente.'}
+            </p>
+          )}
+        </fieldset>
+
+        <fieldset className="rounded-sm border border-hairline-cool bg-canvas-soft p-sm">
+          <legend className="px-xs text-xs font-medium text-ink">SKU estructurado (opcional)</legend>
+          <p className="text-xs text-ink-mute">
+            Si defines prefijo y segmentos, el SKU se genera solo al crear productos de esta
+            categoría (bloqueado).
+          </p>
+          <div className="mt-sm grid grid-cols-2 gap-md">
+            <div>
+              <label htmlFor="sku-prefijo" className={labelClass}>
+                Prefijo
+              </label>
+              <Input
+                id="sku-prefijo"
+                value={skuPrefijo}
+                onChange={e => setSkuPrefijo(e.target.value.toUpperCase())}
+                placeholder="TEC"
+                maxLength={6}
+                className="font-mono uppercase"
+              />
+            </div>
+            <div>
+              <label htmlFor="sku-segmentos" className={labelClass}>
+                Segmentos (en orden)
+              </label>
+              <Input
+                id="sku-segmentos"
+                value={skuSegmentosTexto}
+                onChange={e => setSkuSegmentosTexto(e.target.value)}
+                placeholder="CATEGORIA, BRAND, MODEL"
+                className="font-mono"
+              />
+            </div>
+          </div>
+          <p className="mt-xs text-xs text-ink-mute">Tokens válidos: {SKU_SEGMENTOS.join(', ')}</p>
+          {skuPreview && (
+            <p className="mt-xs text-xs text-ink-mute">
+              Ejemplo:{' '}
+              <span className="font-mono tabular-nums text-ink">{skuPreview}</span>
+            </p>
+          )}
+        </fieldset>
 
         <div className="flex items-center justify-end gap-sm pt-md">
           <Button type="button" variant="secondary" onClick={onClose}>
@@ -505,6 +801,12 @@ export function CategoriesPage(): React.ReactElement {
     [debouncedSearch, estadoFilter]
   );
 
+  const ordenadas = useMemo(() => ordenarJerarquia(categorias), [categorias]);
+  const nombrePorId = useMemo(
+    () => new Map(categorias.map(c => [c.id, c.nombre])),
+    [categorias]
+  );
+
   return (
     <div>
       {/* Encabezado */}
@@ -564,12 +866,36 @@ export function CategoriesPage(): React.ReactElement {
             <table className="w-full border-collapse">
               <TableHeader />
               <tbody className="divide-y divide-hairline-cool">
-                {categorias.map(c => (
+                {ordenadas.map(({ categoria: c, depth }) => (
                   <tr key={c.id} className="transition-colors duration-150 hover:bg-canvas-soft">
-                    <td className="px-3 py-2.5 text-sm text-ink">{c.nombre}</td>
+                    <td className="px-3 py-2.5 text-sm text-ink">
+                      <div
+                        className="flex items-center gap-sm"
+                        style={{ paddingLeft: `${depth * 20}px` }}
+                      >
+                        {depth > 0 && (
+                          <CornerDownRight
+                            size={13}
+                            className="shrink-0 text-ink-faint"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate text-ink">{c.nombre}</p>
+                          {c.categoria_padre_id !== null && (
+                            <p className="mt-xxs truncate text-xs text-ink-mute">
+                              Subcategoría de {nombrePorId.get(c.categoria_padre_id) ?? '—'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
                     <td className="px-3 py-2.5 font-mono text-xs text-ink-secondary">{c.slug}</td>
                     <td className="px-3 py-2.5 font-mono text-xs tabular-nums text-ink-mute">
                       {c.productos_count}
+                      {c.hijos_count > 0 && (
+                        <span className="ml-xs text-ink-faint">· {c.hijos_count} sub</span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5">
                       <EstadoBadge activo={c.activo} />
@@ -608,11 +934,13 @@ export function CategoriesPage(): React.ReactElement {
                           type="button"
                           variant="secondary"
                           size="sm"
-                          disabled={c.productos_count > 0}
+                          disabled={c.productos_count > 0 || c.hijos_count > 0}
                           title={
                             c.productos_count > 0
                               ? 'No se puede eliminar: tiene productos asociados. Desactívala.'
-                              : undefined
+                              : c.hijos_count > 0
+                                ? 'No se puede eliminar: tiene subcategorías. Elimínalas o muévelas primero.'
+                                : undefined
                           }
                           onClick={() => setPendingDelete(c)}
                           className="text-retail-red hover:bg-retail-red/10"
@@ -640,6 +968,7 @@ export function CategoriesPage(): React.ReactElement {
       {modal && (
         <CategoryModal
           categoria={modal.categoria}
+          categorias={categorias}
           onClose={() => setModal(null)}
           onSaved={handleSaved}
         />
