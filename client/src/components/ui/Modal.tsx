@@ -87,6 +87,7 @@ export function Modal({
         tabIndex={-1}
         className={cn(
           'w-full rounded-sm border border-hairline bg-canvas p-xl focus:outline-none',
+          'max-h-[calc(100vh-2rem)] overflow-y-auto overscroll-contain',
           'animate-modal-in motion-reduce:animate-none',
           panelClassName
         )}
