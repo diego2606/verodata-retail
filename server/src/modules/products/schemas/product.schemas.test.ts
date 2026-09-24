@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   actualizarProductoSchema,
+  crearProductosLoteSchema,
   crearProductoSchema,
   listarProductosQuerySchema,
 } from './product.schemas';
@@ -39,6 +40,31 @@ describe('crearProductoSchema (HU007)', () => {
   it('rechaza SKU demasiado corto', () => {
     expect(crearProductoSchema.safeParse({ ...base, sku: 'ab' }).success).toBe(false);
   });
+
+  it('acepta stock inicial y mínimo (HU024)', () => {
+    const result = crearProductoSchema.safeParse({ ...base, stock_inicial: 20, stock_minimo: 3 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.stock_inicial).toBe(20);
+      expect(result.data.stock_minimo).toBe(3);
+    }
+  });
+
+  it('rechaza stock inicial negativo (HU024)', () => {
+    expect(crearProductoSchema.safeParse({ ...base, stock_inicial: -1 }).success).toBe(false);
+  });
+});
+
+describe('crearProductosLoteSchema (HU028)', () => {
+  it('rechaza lote vacío', () => {
+    expect(crearProductosLoteSchema.safeParse({ productos: [] }).success).toBe(false);
+  });
+
+  it('acepta un lote de variantes válidas', () => {
+    const result = crearProductosLoteSchema.safeParse({ productos: [base, { ...base, sku: 'SKU-002' }] });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.productos).toHaveLength(2);
+  });
 });
 
 describe('listarProductosQuerySchema (HU007)', () => {
@@ -69,5 +95,15 @@ describe('actualizarProductoSchema (HU008)', () => {
 
   it('rechaza precio regular negativo', () => {
     expect(actualizarProductoSchema.safeParse({ precio_regular: -5 }).success).toBe(false);
+  });
+
+  it('acepta el borrado lógico con activo = false (HU009)', () => {
+    const result = actualizarProductoSchema.safeParse({ activo: false });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.activo).toBe(false);
+  });
+
+  it('rechaza activo no booleano', () => {
+    expect(actualizarProductoSchema.safeParse({ activo: 'false' }).success).toBe(false);
   });
 });

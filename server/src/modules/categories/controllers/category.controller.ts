@@ -50,7 +50,12 @@ export const categoryController = {
 
       if (!result.success) {
         const conflictCodes = ['NAME_ALREADY_EXISTS', 'SLUG_ALREADY_EXISTS'];
-        const status = conflictCodes.includes(result.error.code) ? 409 : 400;
+        const status =
+          result.error.code === 'PARENT_NOT_FOUND'
+            ? 404
+            : conflictCodes.includes(result.error.code)
+              ? 409
+              : 400;
         res.status(status).json(result);
         return;
       }
@@ -82,7 +87,7 @@ export const categoryController = {
         const conflictCodes = ['NAME_ALREADY_EXISTS', 'SLUG_ALREADY_EXISTS'];
         const status = conflictCodes.includes(result.error.code)
           ? 409
-          : result.error.code === 'RESOURCE_NOT_FOUND'
+          : result.error.code === 'RESOURCE_NOT_FOUND' || result.error.code === 'PARENT_NOT_FOUND'
             ? 404
             : 400;
         res.status(status).json(result);
@@ -110,7 +115,8 @@ export const categoryController = {
         const status =
           result.error.code === 'RESOURCE_NOT_FOUND'
             ? 404
-            : result.error.code === 'CATEGORY_HAS_PRODUCTS'
+            : result.error.code === 'CATEGORY_HAS_PRODUCTS' ||
+                result.error.code === 'CATEGORY_HAS_SUBCATEGORIES'
               ? 409
               : 400;
         res.status(status).json(result);

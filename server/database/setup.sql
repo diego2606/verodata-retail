@@ -88,12 +88,17 @@ CREATE TABLE datos_personales (
 
 -- 4. CATEGORÍAS
 CREATE TABLE categorias (
-    id          SERIAL PRIMARY KEY,
-    nombre      VARCHAR(100) NOT NULL UNIQUE,
-    slug        VARCHAR(120) NOT NULL UNIQUE,
-    descripcion TEXT,
-    activo      BOOLEAN NOT NULL DEFAULT TRUE,
-    creado_en   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    id                    SERIAL PRIMARY KEY,
+    nombre                VARCHAR(100) NOT NULL UNIQUE,
+    slug                  VARCHAR(120) NOT NULL UNIQUE,
+    descripcion           TEXT,
+    categoria_padre_id    INTEGER REFERENCES categorias(id) ON DELETE CASCADE,
+    atributos_permitidos  TEXT[],
+    atributos_valores     JSONB,
+    sku_prefijo           VARCHAR(6),
+    sku_segmentos         TEXT[],
+    activo                BOOLEAN NOT NULL DEFAULT TRUE,
+    creado_en             TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 5. PRODUCTOS
@@ -106,9 +111,32 @@ CREATE TABLE productos (
     precio_regular NUMERIC(10, 2) NOT NULL CHECK (precio_regular >= 0),
     precio_oferta  NUMERIC(10, 2) CHECK (precio_oferta >= 0),
     imagen_url     TEXT,
+    modelo         VARCHAR(255),
+    atributos      JSONB NOT NULL DEFAULT '{}'::jsonb,
     activo         BOOLEAN NOT NULL DEFAULT TRUE,
     creado_en      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     actualizado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5b. IMÁGENES DE PRODUCTO (galería, HU033)
+CREATE TABLE producto_imagenes (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    producto_id  UUID NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    url          TEXT NOT NULL,
+    alt          VARCHAR(150),
+    orden        INTEGER NOT NULL DEFAULT 0,
+    es_principal BOOLEAN NOT NULL DEFAULT FALSE,
+    creado_en    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5c. CATÁLOGO DE COLORES (HU032)
+CREATE TABLE colores (
+    id        SERIAL PRIMARY KEY,
+    nombre    VARCHAR(60) NOT NULL UNIQUE,
+    slug      VARCHAR(80) NOT NULL UNIQUE,
+    hex       VARCHAR(7) NOT NULL,
+    activo    BOOLEAN NOT NULL DEFAULT TRUE,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 6. INVENTARIO (deducción atómica)
@@ -153,10 +181,13 @@ CREATE TABLE pedido_items (
 -- 3. ÍNDICES
 -- ─────────────────────────────────────────────────────────────
 CREATE INDEX idx_productos_categoria  ON productos(categoria_id);
+CREATE UNIQUE INDEX uq_productos_modelo_atributos ON productos(modelo, atributos);
 CREATE INDEX idx_inventario_stock     ON inventario(stock_actual);
 CREATE INDEX idx_pedidos_usuario      ON pedidos(usuario_id);
 CREATE INDEX idx_pedidos_estado       ON pedidos(estado);
 CREATE INDEX idx_pedidos_fecha        ON pedidos(creado_en DESC);
+CREATE INDEX idx_producto_imagenes    ON producto_imagenes(producto_id);
+CREATE UNIQUE INDEX uq_producto_imagen_principal ON producto_imagenes(producto_id) WHERE es_principal;
 
 -- ─────────────────────────────────────────────────────────────
 -- 4. SEED — Roles y Super Admin inicial
