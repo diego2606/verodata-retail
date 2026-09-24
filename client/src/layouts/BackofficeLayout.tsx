@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { NavLink, Link, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
   Package,
@@ -7,6 +7,7 @@ import {
   Warehouse,
   ShoppingCart,
   Users,
+  BookOpen,
   LogOut,
   Menu,
   X,
@@ -114,14 +115,7 @@ export function BackofficeLayout(): React.ReactElement {
         </Button>
 
         {/* Brand */}
-        <div className="flex items-center gap-xs">
-          <span className="inline-block w-5 h-5 rounded-xs bg-canvas-night flex items-center justify-center shrink-0" aria-hidden="true">
-            <span className="text-primary font-mono font-bold text-xs leading-none">V</span>
-          </span>
-          {!collapsed && (
-            <span className="text-xs font-medium text-ink tracking-tight">VeroData Retail</span>
-          )}
-        </div>
+        <img src="/brand/logo-verodata.svg" alt="VeroData Retail" className="h-6 w-auto shrink-0" />
 
         <span className="text-hairline-strong text-xs" aria-hidden="true">|</span>
         <span className="text-xs text-ink-mute hidden sm:block">
@@ -172,7 +166,20 @@ export function BackofficeLayout(): React.ReactElement {
           </nav>
 
           {/* Logout */}
-          <div className="px-sm py-md border-t border-hairline">
+          <div className="px-sm py-md border-t border-hairline space-y-xs">
+            <Link
+              to="/documentacion"
+              className={cn(
+                'flex items-center gap-sm rounded-sm w-full text-sm px-3 py-2',
+                'text-ink-mute hover:bg-hairline-cool hover:text-ink transition-colors duration-150',
+                'focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-1',
+                collapsed && 'justify-center px-0'
+              )}
+              title={collapsed ? 'Manual de usuario' : undefined}
+            >
+              <BookOpen size={16} className="shrink-0" aria-hidden="true" />
+              {!collapsed && <span>Manual</span>}
+            </Link>
             <Button
               type="button"
               variant="ghost"

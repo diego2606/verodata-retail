@@ -1,17 +1,27 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { AlertTriangle, Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import {
+  AlertTriangle,
+  CreditCard,
+  Database,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  Terminal,
+  TrendingUp,
+  type LucideIcon,
+} from 'lucide-react';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { useAuth, type AuthUser } from '../../context/AuthContext';
 import { apiClient, ApiClientError } from '../../lib/apiClient';
 
-// ─── Schema de validación ─────────────────────────────────────────────────────
+// ─── Schema ───────────────────────────────────────────────────────────────────
 
 const loginSchema = z.object({
   email: z.string().email('Ingresa un correo electrónico válido'),
@@ -20,74 +30,110 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-// ─── Tipos de respuesta del backend ──────────────────────────────────────────
-
 interface LoginData {
   token: string;
-  usuario: {
-    id: string;
-    email: string;
-    rol: string;
-  };
+  usuario: { id: string; email: string; rol: string };
 }
 
-// ─── Subcomponente: columna de branding técnico ───────────────────────────────
+// ─── Panel izquierdo (marca) ──────────────────────────────────────────────────
 
-const TECH_CHIPS = ['PostgreSQL', '3FN', 'ACID', 'RBAC', 'JWT'] as const;
+interface MetricCard {
+  title: string;
+  value: string;
+  change: string;
+  icon: LucideIcon;
+}
+
+const METRIC_CARDS: MetricCard[] = [
+  { title: 'Transacciones', value: '1,248', change: '+12.5%', icon: CreditCard },
+  { title: 'Disponibilidad', value: '99.9%', change: '+0.2%', icon: Database },
+];
 
 function BrandPanel(): React.ReactElement {
   return (
-    <aside className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-auth-canvas border-l border-auth-hairline p-huge">
-      {/* Marca superior */}
-      <div className="flex items-center gap-sm">
-        <span className="inline-flex w-6 h-6 rounded-xs bg-auth-elevated border border-auth-hairline items-center justify-center shrink-0">
-          <span className="text-primary font-mono font-bold text-xs leading-none">V</span>
-        </span>
-        <span className="text-xs font-mono uppercase tracking-widest text-auth-muted">
-          VeroData Retail
-        </span>
-      </div>
+    <aside
+      className="relative hidden lg:flex lg:w-[43.06%] shrink-0 flex-col justify-between overflow-hidden border-r border-[#1F2231] p-12"
+      style={{
+        backgroundImage:
+          "linear-gradient(90deg, rgba(12,13,18,0.901961) 0%, rgba(18,20,28,0.952941) 100%), url('/brand/image_admin_login.png')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      {/* panel-top */}
+      <div className="flex flex-col gap-6">
+        {/* logo */}
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#10B981] bg-[#10B981]/10">
+            <Terminal size={16} className="text-[#10B981]" aria-hidden="true" />
+          </span>
+          <span className="font-mono text-sm font-bold leading-[18px] text-[#F3F4F6]">
+            VeroData Retail
+          </span>
+        </div>
 
-      {/* Cita / resumen de arquitectura */}
-      <div className="max-w-md">
-        <p className="text-2xl font-medium leading-snug text-auth-text tracking-tight">
-          Arquitectura limpia en 3FN, transacciones seguras de inventario y autenticación
-          granular RBAC.
-        </p>
-        <p className="mt-md text-sm text-auth-muted leading-relaxed">
-          Construido para operaciones retail de alto rendimiento.
-        </p>
-
-        <div className="mt-xl flex flex-wrap gap-xs">
-          {TECH_CHIPS.map(chip => (
-            <span
-              key={chip}
-              className="px-sm py-xxs rounded-xs border border-auth-hairline bg-auth-surface text-auth-muted font-mono text-xs"
-            >
-              {chip}
-            </span>
-          ))}
+        {/* value-proposition */}
+        <div className="flex flex-col gap-4">
+          <p className="text-[40px] font-bold leading-[1.2] text-[#F3F4F6]">
+            Operación retail sin sobreventa ni pérdida de trazabilidad.
+          </p>
+          <p className="text-base font-normal leading-[1.6] text-[#9CA3AF]">
+            Plataforma omnicanal con inventario atómico, pedidos con snapshot inmutable y control de
+            accesos por rol.
+          </p>
         </div>
       </div>
 
-      {/* Firma técnica */}
-      <div className="flex items-center gap-md border-t border-auth-hairline pt-lg">
-        <span
-          className="inline-flex w-9 h-9 rounded-sm bg-auth-elevated border border-auth-hairline items-center justify-center shrink-0"
-          aria-hidden="true"
-        >
-          <span className="text-primary font-mono text-xs font-bold leading-none">VD</span>
+      {/* technical-showcase */}
+      <div className="flex flex-col gap-4">
+        <span className="font-mono text-[11px] font-semibold uppercase leading-[14px] text-[#9CA3AF]">
+          Estado del sistema
         </span>
-        <div>
-          <p className="text-sm font-medium text-auth-text leading-none">Equipo de Plataforma</p>
-          <p className="mt-xxs text-xs font-mono text-auth-muted">VeroData Retail S.A.C.</p>
+        <div className="flex flex-wrap gap-4">
+          {METRIC_CARDS.map(card => {
+            const Icon = card.icon;
+            return (
+              <div
+                key={card.title}
+                className="flex w-[240px] flex-col gap-3 rounded-lg border border-[#1F2231] bg-[#12141C]/90 p-[18px]"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] font-semibold uppercase leading-[14px] text-[#9CA3AF]">
+                    {card.title}
+                  </span>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-[#10B981]/[0.078]">
+                    <Icon size={14} className="text-[#10B981]" aria-hidden="true" />
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[22px] font-bold leading-[29px] tabular-nums text-[#F3F4F6]">
+                    {card.value}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <TrendingUp size={12} className="text-[#10B981]" aria-hidden="true" />
+                    <span className="font-mono text-[11px] leading-[14px] text-[#10B981]">
+                      {card.change}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
+      </div>
+
+      {/* panel-footer */}
+      <div className="flex items-center gap-3">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-[#10B981]" aria-hidden="true" />
+        <span className="font-mono text-xs leading-4 text-[#9CA3AF]">
+          Todos los sistemas operativos
+        </span>
       </div>
     </aside>
   );
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
+// ─── Página ───────────────────────────────────────────────────────────────────
 
 export function LoginPage(): React.ReactElement {
   const { login } = useAuth();
@@ -138,193 +184,209 @@ export function LoginPage(): React.ReactElement {
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-auth-surface">
-
+    <div className="flex min-h-screen w-full bg-[#0C0D12]">
       {/* ── Modal de bloqueo de seguridad (3 intentos) ────────────────────── */}
       {bloqueado && (
         <Modal
           onClose={() => setBloqueado(false)}
           labelledBy="modal-bloqueo-titulo"
-          overlayClassName="bg-auth-canvas/80"
-          panelClassName="max-w-sm border-auth-hairline bg-auth-surface"
+          overlayClassName="bg-[#0C0D12]/80"
+          panelClassName="max-w-sm border-[#1F2231] bg-[#12141C]"
         >
-            <div className="flex items-center gap-sm mb-md">
-              <AlertTriangle size={18} className="text-retail-red shrink-0" aria-hidden="true" />
-              <h2 id="modal-bloqueo-titulo" className="text-sm font-medium text-auth-text">
-                Acceso bloqueado preventivamente
-              </h2>
-            </div>
-            <p className="text-xs text-auth-muted leading-relaxed mb-lg">
-              Detectamos 3 intentos fallidos consecutivos en esta cuenta. Por tu seguridad, el
-              acceso ha sido suspendido temporalmente.
-            </p>
-            <div className="flex flex-col gap-xs">
-              <Button
-                type="button"
-                size="sm"
-                className="w-full"
-                onClick={() => setShowHelp(true)}
-              >
-                Restablecer contraseña
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="w-full text-auth-muted hover:bg-auth-canvas hover:text-auth-text"
-                onClick={() => setBloqueado(false)}
-              >
-                Esperar e intentar de nuevo
-              </Button>
-            </div>
+          <div className="mb-md flex items-center gap-sm">
+            <AlertTriangle size={18} className="shrink-0 text-retail-red" aria-hidden="true" />
+            <h2 id="modal-bloqueo-titulo" className="text-sm font-medium text-[#F3F4F6]">
+              Acceso bloqueado preventivamente
+            </h2>
+          </div>
+          <p className="mb-lg text-xs leading-relaxed text-[#9CA3AF]">
+            Detectamos 3 intentos fallidos consecutivos en esta cuenta. Por tu seguridad, el acceso
+            ha sido suspendido temporalmente.
+          </p>
+          <div className="flex flex-col gap-xs">
+            <Button type="button" size="sm" className="w-full" onClick={() => setShowHelp(true)}>
+              Restablecer contraseña
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full text-[#9CA3AF] hover:bg-[#090A0F] hover:text-[#F3F4F6]"
+              onClick={() => setBloqueado(false)}
+            >
+              Esperar e intentar de nuevo
+            </Button>
+          </div>
         </Modal>
       )}
 
-      {/* ── Columna izquierda: formulario ─────────────────────────────────── */}
-      <div className="w-full lg:w-1/2 flex flex-col">
+      {/* ── Panel izquierdo (marca) ───────────────────────────────────────── */}
+      <BrandPanel />
 
-        {/* Logo superior */}
-        <div className="flex items-center gap-sm px-xl py-lg">
-          <span className="inline-flex w-7 h-7 rounded-sm bg-auth-elevated border border-auth-hairline items-center justify-center shrink-0">
-            <span className="text-primary font-mono font-bold text-sm leading-none">V</span>
-          </span>
-          <span className="text-sm font-medium text-auth-text tracking-tight">VeroData Retail</span>
+      {/* ── Panel derecho (formulario) ────────────────────────────────────── */}
+      <div className="flex w-full flex-col bg-[#0C0D12] px-6 pb-12 pt-16 lg:flex-1 lg:px-[120px] lg:pb-12">
+        {/* top-actions */}
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-xs leading-4 text-[#4B5563]">v1.0.0</span>
+          <Link
+            to="/documentacion"
+            className="flex items-center gap-1.5 font-mono text-xs leading-4 text-[#9CA3AF] transition-colors hover:text-[#F3F4F6]"
+          >
+            Documentación
+            <ExternalLink size={12} className="text-[#6B7280]" aria-hidden="true" />
+          </Link>
         </div>
 
-        {/* Formulario centrado */}
-        <div className="flex flex-1 items-center justify-center px-xl">
-          <div className="w-full max-w-sm">
-
-            <div className="mb-xl">
-              <h1 className="text-2xl font-semibold text-auth-text">Welcome back</h1>
-              <p className="mt-xs text-sm text-auth-muted">Sign in to your account</p>
+        {/* form-card */}
+        <div className="flex flex-1 items-center justify-center py-xxl">
+          <div className="flex w-full max-w-[400px] flex-col gap-8">
+            {/* form-header */}
+            <div className="flex flex-col gap-3">
+              <h1 className="text-[28px] font-bold leading-9 text-[#F3F4F6]">Bienvenido de nuevo</h1>
+              <p className="text-sm font-normal leading-[1.5] text-[#9CA3AF]">
+                Inicia sesión en tu cuenta administrativa para continuar.
+              </p>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-md">
-
-              {/* Error de servidor */}
+            <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
               {serverError && (
                 <div
                   role="alert"
                   aria-live="polite"
-                  className="flex items-start gap-xs rounded-xs border border-retail-red/40 bg-retail-red/10 p-sm"
+                  className="flex items-start gap-xs rounded-md border border-retail-red/40 bg-retail-red/10 p-sm"
                 >
-                  <AlertTriangle size={13} className="text-retail-red shrink-0 mt-px" aria-hidden="true" />
-                  <p className="text-xs text-auth-text">{serverError}</p>
+                  <AlertTriangle size={13} className="mt-px shrink-0 text-retail-red" aria-hidden="true" />
+                  <p className="text-xs text-[#F3F4F6]">{serverError}</p>
                 </div>
               )}
 
-              {/* Email */}
-              <div>
-                <label htmlFor="email" className="block text-xs font-medium text-auth-text mb-xs">
-                  Email
-                </label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  invalid={!!errors.email}
-                  aria-describedby={errors.email ? 'email-error' : undefined}
-                  placeholder="admin@verodata.com"
-                  className={cn(
-                    'bg-auth-canvas text-auth-text placeholder:text-auth-muted',
-                    !errors.email && 'border-auth-hairline'
-                  )}
-                  {...register('email')}
-                />
-                {errors.email && (
-                  <p id="email-error" role="alert" aria-live="polite" className="mt-xs text-xs text-retail-red">
-                    {errors.email.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Password */}
-              <div>
-                <div className="flex items-center justify-between mb-xs">
-                  <label htmlFor="password" className="text-xs font-medium text-auth-text">
-                    Password
+              {/* form-inputs */}
+              <div className="flex flex-col gap-5">
+                {/* Correo */}
+                <div className="flex flex-col gap-2">
+                  <label
+                    htmlFor="email"
+                    className="font-mono text-[11px] font-semibold uppercase leading-[14px] text-[#9CA3AF]"
+                  >
+                    Correo institucional
                   </label>
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="none"
-                    onClick={() => setShowHelp(v => !v)}
-                    className="text-xs text-auth-muted hover:text-primary"
-                  >
-                    Forgot password?
-                  </Button>
-                </div>
-                <div className="relative">
                   <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    invalid={!!errors.password}
-                    aria-describedby={errors.password ? 'password-error' : undefined}
-                    placeholder="••••••••"
-                    className={cn(
-                      'bg-auth-canvas text-auth-text placeholder:text-auth-muted pr-9',
-                      !errors.password && 'border-auth-hairline'
-                    )}
-                    {...register('password')}
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    invalid={!!errors.email}
+                    aria-describedby={errors.email ? 'email-error' : undefined}
+                    placeholder="admin@verodata.com"
+                    className="h-[46px] rounded-md border-[#1F2231] bg-[#090A0F] px-4 text-sm text-[#F3F4F6] placeholder:text-[#4B5563] focus:border-[#10B981] focus:ring-[#10B981]"
+                    {...register('email')}
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowPassword(v => !v)}
-                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                    className="absolute right-sm top-1/2 -translate-y-1/2 text-auth-muted hover:bg-transparent hover:text-auth-text"
-                  >
-                    {showPassword ? <EyeOff size={14} aria-hidden="true" /> : <Eye size={14} aria-hidden="true" />}
-                  </Button>
+                  {errors.email && (
+                    <p id="email-error" role="alert" aria-live="polite" className="text-xs text-retail-red">
+                      {errors.email.message}
+                    </p>
+                  )}
                 </div>
-                {errors.password && (
-                  <p id="password-error" role="alert" aria-live="polite" className="mt-xs text-xs text-retail-red">
-                    {errors.password.message}
-                  </p>
-                )}
+
+                {/* Contraseña */}
+                <div className="flex flex-col gap-2">
+                  <label
+                    htmlFor="password"
+                    className="font-mono text-[11px] font-semibold uppercase leading-[14px] text-[#9CA3AF]"
+                  >
+                    Contraseña
+                  </label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      invalid={!!errors.password}
+                      aria-describedby={errors.password ? 'password-error' : undefined}
+                      placeholder="••••••••"
+                      className="h-[46px] rounded-md border-[#1F2231] bg-[#090A0F] px-4 pr-12 text-sm text-[#F3F4F6] placeholder:text-[#4B5563] focus:border-[#10B981] focus:ring-[#10B981]"
+                      {...register('password')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(v => !v)}
+                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                      className="absolute right-4 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center text-[#9CA3AF] transition-colors hover:text-[#F3F4F6]"
+                    >
+                      {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                    </button>
+                  </div>
+                  {errors.password && (
+                    <p id="password-error" role="alert" aria-live="polite" className="text-xs text-retail-red">
+                      {errors.password.message}
+                    </p>
+                  )}
+                </div>
               </div>
 
-              {/* Ayuda de restablecimiento */}
+              {/* form-options */}
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-[13px] leading-[17px] text-[#9CA3AF]">
+                  <input type="checkbox" className="h-4 w-4 rounded-xs accent-[#10B981]" />
+                  Recordarme
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowHelp(v => !v)}
+                  className="text-[13px] font-medium leading-[17px] text-[#10B981] underline underline-offset-2"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
+
               {showHelp && (
                 <p
                   aria-live="polite"
-                  className="flex items-start gap-xs rounded-xs border border-auth-hairline bg-auth-canvas p-sm text-xs text-auth-muted"
+                  className="flex items-start gap-xs rounded-md border border-[#1F2231] bg-[#090A0F] p-sm text-xs text-[#9CA3AF]"
                 >
-                  <ShieldCheck size={13} className="mt-px shrink-0 text-primary" aria-hidden="true" />
+                  <ShieldCheck size={13} className="mt-px shrink-0 text-[#10B981]" aria-hidden="true" />
                   Solicita el restablecimiento de tu contraseña a un Super Administrador.
                 </p>
               )}
 
-              {/* Submit */}
-              <Button type="submit" isLoading={isSubmitting} className="w-full">
-                {isSubmitting ? 'Verificando…' : 'Sign in'}
-              </Button>
+              {/* form-actions */}
+              <div className="flex flex-col gap-4">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex h-11 items-center justify-center gap-2 rounded-md bg-[#10B981] text-sm font-semibold text-[#090A0F] shadow-[0_4px_12px_rgba(16,185,129,0.15)] transition-colors duration-150 hover:bg-[#0ea472] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmitting && (
+                    <span
+                      className="h-4 w-4 animate-spin rounded-full border-2 border-[#090A0F]/30 border-t-[#090A0F]"
+                      aria-hidden="true"
+                    />
+                  )}
+                  {isSubmitting ? 'Verificando…' : 'Ingresar'}
+                </button>
+                <button
+                  type="button"
+                  className="flex h-11 items-center justify-center rounded-md border border-[#1F2231] text-sm font-medium text-[#F3F4F6] transition-colors duration-150 hover:bg-[#12141C]"
+                >
+                  Acceder con SSO
+                </button>
+              </div>
             </form>
-
-            {/* Seguridad */}
-            <div className="mt-lg flex items-center justify-center gap-xs text-xs text-auth-muted">
-              <Lock size={12} aria-hidden="true" />
-              <span>Conexión cifrada — acceso restringido al personal autorizado</span>
-            </div>
           </div>
         </div>
 
-        {/* Pie de página */}
-        <footer className="px-xl py-lg">
-          <p className="text-xs text-auth-muted">
-            © {new Date().getFullYear()} VeroData Retail S.A.C. —{' '}
-            <a href="#" className="transition-colors hover:text-auth-text">Términos</a>
-            {' · '}
-            <a href="#" className="transition-colors hover:text-auth-text">Privacidad</a>
+        {/* right-footer */}
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-px w-full max-w-[400px] bg-[#1F2231]" />
+          <div className="flex items-center gap-4 font-mono text-[11px] leading-[14px] text-[#4B5563]">
+            <a href="#" className="transition-colors hover:text-[#9CA3AF]">Términos</a>
+            <span className="h-1 w-1 rounded-full bg-[#4B5563]" aria-hidden="true" />
+            <a href="#" className="transition-colors hover:text-[#9CA3AF]">Privacidad</a>
+          </div>
+          <p className="text-center font-mono text-[11px] leading-[14px] text-[#4B5563]">
+            © {new Date().getFullYear()} VeroData Retail S.A.C.
           </p>
-        </footer>
+        </div>
       </div>
-
-      {/* ── Columna derecha: branding ─────────────────────────────────────── */}
-      <BrandPanel />
     </div>
   );
 }
