@@ -34,3 +34,13 @@ export interface CrearUsuarioPayload {
   password: string;
   telefono?: string;
 }
+
+/** Contrato de PATCH /api/v1/users/:id (HU005) — sin password ni rol */
+export interface ActualizarUsuarioPayload {
+  tipo_documento?: TipoDocumento;
+  numero_documento?: string;
+  nombres?: string;
+  apellidos?: string;
+  email?: string;
+  telefono?: string;
+}

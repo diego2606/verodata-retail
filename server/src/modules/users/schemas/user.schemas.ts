@@ -40,6 +40,29 @@ export const actualizarBloqueoSchema = z.object({
   bloqueado: z.boolean(),
 });
 
+/** Query de GET /api/v1/users/search (HU004) */
+export const buscarDocumentoQuerySchema = z.object({
+  documento: z
+    .string()
+    .trim()
+    .min(6, { message: 'Documento inválido' })
+    .max(20, { message: 'Documento inválido' }),
+});
+
+/** Body de PATCH /api/v1/users/:id (HU005) — no permite cambiar password ni rol */
+export const actualizarUsuarioSchema = z
+  .object({
+    email: z.string().trim().email({ message: 'Email inválido' }).max(150).optional(),
+    nombres: z.string().trim().min(2).max(100).optional(),
+    apellidos: z.string().trim().min(2).max(100).optional(),
+    telefono: z.string().trim().min(9).max(20).optional(),
+    tipo_documento: tipoDocumentoSchema.optional(),
+    numero_documento: z.string().trim().min(6).max(20).optional(),
+  })
+  .refine((data) => Object.values(data).some((value) => value !== undefined), {
+    message: 'Debe enviar al menos un campo para actualizar',
+  });
+
 export const usuarioIdParamSchema = z.object({
   id: z.string().uuid({ message: 'Identificador de usuario inválido' }),
 });
@@ -47,3 +70,5 @@ export const usuarioIdParamSchema = z.object({
 export type ListarUsuariosQuery = z.infer<typeof listarUsuariosQuerySchema>;
 export type CrearUsuarioInput = z.infer<typeof crearUsuarioSchema>;
 export type ActualizarBloqueoInput = z.infer<typeof actualizarBloqueoSchema>;
+export type BuscarDocumentoQuery = z.infer<typeof buscarDocumentoQuerySchema>;
+export type ActualizarUsuarioInput = z.infer<typeof actualizarUsuarioSchema>;

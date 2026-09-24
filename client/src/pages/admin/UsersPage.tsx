@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Lock,
   LockOpen,
+  Pencil,
   Plus,
   Search,
   ShieldCheck,
@@ -18,6 +19,7 @@ import { Select } from '../../components/ui/Select';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient, ApiClientError } from '../../lib/apiClient';
 import type {
+  ActualizarUsuarioPayload,
   CrearUsuarioPayload,
   RolOption,
   RolUsuario,
@@ -41,6 +43,19 @@ const crearUsuarioSchema = z.object({
 });
 
 type CrearUsuarioFormValues = z.infer<typeof crearUsuarioSchema>;
+
+// ─── Schema del modal de edición (HU005 — sin password ni rol) ────────────────
+
+const editarUsuarioSchema = z.object({
+  tipo_documento: z.enum(['DNI', 'PASAPORTE', 'CARNET_EXTRANJERIA']),
+  numero_documento: z.string().trim().min(6, 'Mínimo 6 caracteres').max(20, 'Máximo 20 caracteres'),
+  nombres: z.string().trim().min(2, 'Mínimo 2 caracteres').max(100),
+  apellidos: z.string().trim().min(2, 'Mínimo 2 caracteres').max(100),
+  email: z.string().trim().email('Email inválido'),
+  telefono: z.string().trim().max(20).optional().or(z.literal('')),
+});
+
+type EditarUsuarioFormValues = z.infer<typeof editarUsuarioSchema>;
 
 // ─── Helpers de presentación ──────────────────────────────────────────────────
 
@@ -449,6 +464,189 @@ function CreateUserModal({ onClose, onCreated }: CreateUserModalProps): React.Re
   );
 }
 
+// ─── Modal de edición (HU005) ─────────────────────────────────────────────────
+
+interface EditUserModalProps {
+  usuario: UsuarioListItem;
+  onClose: () => void;
+  onUpdated: (message: string) => void;
+}
+
+function EditUserModal({ usuario, onClose, onUpdated }: EditUserModalProps): React.ReactElement {
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<EditarUsuarioFormValues>({
+    resolver: zodResolver(editarUsuarioSchema),
+    defaultValues: {
+      tipo_documento: usuario.tipo_documento ?? 'DNI',
+      numero_documento: usuario.numero_documento ?? '',
+      nombres: usuario.nombres ?? '',
+      apellidos: usuario.apellidos ?? '',
+      email: usuario.email,
+      telefono: usuario.telefono ?? '',
+    },
+  });
+
+  const onSubmit = async (values: EditarUsuarioFormValues): Promise<void> => {
+    setServerError(null);
+
+    const payload: ActualizarUsuarioPayload = {
+      tipo_documento: values.tipo_documento,
+      numero_documento: values.numero_documento,
+      nombres: values.nombres,
+      apellidos: values.apellidos,
+      email: values.email,
+      telefono: values.telefono ? values.telefono : undefined,
+    };
+
+    try {
+      const json = await apiClient.patch<UsuarioListItem>(`/api/v1/users/${usuario.id}`, payload);
+      if (!json.success) {
+        setServerError(json.error.message);
+        return;
+      }
+      onUpdated(`Colaborador ${json.data.email} actualizado`);
+    } catch (error) {
+      setServerError(
+        error instanceof ApiClientError ? error.message : 'Error de conexión. Intenta nuevamente.'
+      );
+    }
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="editar-usuario-titulo"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-lg"
+    >
+      <div className="w-full max-w-lg rounded-sm border border-hairline bg-canvas p-xl">
+        <div className="mb-lg flex items-center justify-between">
+          <div className="flex items-center gap-sm">
+            <Pencil size={16} className="text-primary-ink" aria-hidden="true" />
+            <h2 id="editar-usuario-titulo" className="text-sm font-medium text-ink">
+              Editar colaborador
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="rounded-xs p-xs text-ink-mute transition-colors hover:bg-hairline-cool hover:text-ink"
+          >
+            <X size={15} aria-hidden="true" />
+          </button>
+        </div>
+
+        {serverError && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="mb-md flex items-start gap-xs rounded-xs border border-retail-red/20 bg-retail-red/5 p-sm"
+          >
+            <AlertTriangle size={13} className="mt-px shrink-0 text-retail-red" aria-hidden="true" />
+            <p className="text-xs text-ink-secondary">{serverError}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-md">
+          <div className="grid grid-cols-2 gap-md">
+            <div>
+              <label htmlFor="edit-tipo_documento" className={labelClass}>
+                Tipo de documento
+              </label>
+              <Select
+                id="edit-tipo_documento"
+                invalid={!!errors.tipo_documento}
+                {...register('tipo_documento')}
+              >
+                <option value="DNI">DNI</option>
+                <option value="PASAPORTE">Pasaporte</option>
+                <option value="CARNET_EXTRANJERIA">Carnet de extranjería</option>
+              </Select>
+              <FieldError message={errors.tipo_documento?.message} />
+            </div>
+            <div>
+              <label htmlFor="edit-numero_documento" className={labelClass}>
+                Número de documento
+              </label>
+              <input
+                id="edit-numero_documento"
+                className={cn(inputClass(!!errors.numero_documento), 'font-mono tabular-nums')}
+                {...register('numero_documento')}
+              />
+              <FieldError message={errors.numero_documento?.message} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-md">
+            <div>
+              <label htmlFor="edit-nombres" className={labelClass}>
+                Nombres
+              </label>
+              <input id="edit-nombres" className={inputClass(!!errors.nombres)} {...register('nombres')} />
+              <FieldError message={errors.nombres?.message} />
+            </div>
+            <div>
+              <label htmlFor="edit-apellidos" className={labelClass}>
+                Apellidos
+              </label>
+              <input id="edit-apellidos" className={inputClass(!!errors.apellidos)} {...register('apellidos')} />
+              <FieldError message={errors.apellidos?.message} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-md">
+            <div>
+              <label htmlFor="edit-email" className={labelClass}>
+                Email
+              </label>
+              <input id="edit-email" type="email" className={inputClass(!!errors.email)} {...register('email')} />
+              <FieldError message={errors.email?.message} />
+            </div>
+            <div>
+              <label htmlFor="edit-telefono" className={labelClass}>
+                Teléfono <span className="text-ink-faint">(opcional)</span>
+              </label>
+              <input
+                id="edit-telefono"
+                className={cn(inputClass(!!errors.telefono), 'tabular-nums')}
+                {...register('telefono')}
+              />
+              <FieldError message={errors.telefono?.message} />
+            </div>
+          </div>
+
+          <p className="rounded-xs border border-hairline-cool bg-canvas-soft px-sm py-xs text-xs text-ink-mute">
+            La contraseña y el rol no se modifican desde aquí (HU005).
+          </p>
+
+          <div className="flex items-center justify-end gap-sm pt-md">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xs border border-hairline-strong px-sm py-xs text-sm font-medium text-ink transition-colors duration-150 hover:bg-hairline-cool"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-xs rounded-xs bg-primary px-sm py-xs text-sm font-medium text-on-primary transition-colors duration-150 hover:bg-primary-deep disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSubmitting ? 'Guardando…' : 'Guardar cambios'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Diálogo de confirmación de bloqueo ───────────────────────────────────────
 
 interface ConfirmBloqueoProps {
@@ -539,6 +737,7 @@ export function UsersPage(): React.ReactElement {
   const [estadoFilter, setEstadoFilter] = useState<'' | 'activo' | 'bloqueado'>('');
 
   const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState<UsuarioListItem | null>(null);
   const [pending, setPending] = useState<{ usuario: UsuarioListItem; next: boolean } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -592,6 +791,15 @@ export function UsersPage(): React.ReactElement {
   const handleCreated = useCallback(
     (message: string): void => {
       setShowCreate(false);
+      setToast({ type: 'success', message });
+      reload();
+    },
+    [reload]
+  );
+
+  const handleUpdated = useCallback(
+    (message: string): void => {
+      setEditing(null);
       setToast({ type: 'success', message });
       reload();
     },
@@ -731,32 +939,42 @@ export function UsersPage(): React.ReactElement {
                       <td className="px-3 py-2.5">
                         <EstadoBadge bloqueado={u.bloqueado} />
                       </td>
-                      <td className="px-3 py-2.5 text-right">
-                        <button
-                          type="button"
-                          disabled={esUnoMismo}
-                          title={esUnoMismo ? 'No puedes bloquear tu propia cuenta' : undefined}
-                          onClick={() => setPending({ usuario: u, next: !u.bloqueado })}
-                          className={cn(
-                            'inline-flex items-center gap-xs rounded-xs border px-sm py-xxs text-xs font-medium transition-colors duration-150',
-                            'disabled:cursor-not-allowed disabled:opacity-40',
-                            u.bloqueado
-                              ? 'border-primary/20 text-primary-ink hover:bg-primary/10'
-                              : 'border-hairline-strong text-ink-mute hover:bg-hairline-cool hover:text-ink'
-                          )}
-                        >
-                          {u.bloqueado ? (
-                            <>
-                              <LockOpen size={12} aria-hidden="true" />
-                              Desbloquear
-                            </>
-                          ) : (
-                            <>
-                              <Lock size={12} aria-hidden="true" />
-                              Bloquear
-                            </>
-                          )}
-                        </button>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center justify-end gap-xs">
+                          <button
+                            type="button"
+                            onClick={() => setEditing(u)}
+                            className="inline-flex items-center gap-xs rounded-xs border border-hairline-strong px-sm py-xxs text-xs font-medium text-ink-mute transition-colors duration-150 hover:bg-hairline-cool hover:text-ink"
+                          >
+                            <Pencil size={12} aria-hidden="true" />
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={esUnoMismo}
+                            title={esUnoMismo ? 'No puedes bloquear tu propia cuenta' : undefined}
+                            onClick={() => setPending({ usuario: u, next: !u.bloqueado })}
+                            className={cn(
+                              'inline-flex items-center gap-xs rounded-xs border px-sm py-xxs text-xs font-medium transition-colors duration-150',
+                              'disabled:cursor-not-allowed disabled:opacity-40',
+                              u.bloqueado
+                                ? 'border-primary/20 text-primary-ink hover:bg-primary/10'
+                                : 'border-hairline-strong text-ink-mute hover:bg-hairline-cool hover:text-ink'
+                            )}
+                          >
+                            {u.bloqueado ? (
+                              <>
+                                <LockOpen size={12} aria-hidden="true" />
+                                Desbloquear
+                              </>
+                            ) : (
+                              <>
+                                <Lock size={12} aria-hidden="true" />
+                                Bloquear
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -775,6 +993,13 @@ export function UsersPage(): React.ReactElement {
 
       {/* Modales */}
       {showCreate && <CreateUserModal onClose={() => setShowCreate(false)} onCreated={handleCreated} />}
+      {editing && (
+        <EditUserModal
+          usuario={editing}
+          onClose={() => setEditing(null)}
+          onUpdated={handleUpdated}
+        />
+      )}
       {pending && (
         <ConfirmBloqueo
           usuario={pending.usuario}

@@ -1,7 +1,14 @@
 import bcrypt from 'bcrypt';
-import { userRepository, RolRow, UsuarioListadoRow } from '../repositories/user.repository';
+import {
+  userRepository,
+  ActualizarUsuarioData,
+  RolRow,
+  UsuarioListadoRow,
+} from '../repositories/user.repository';
 import {
   ActualizarBloqueoInput,
+  ActualizarUsuarioInput,
+  BuscarDocumentoQuery,
   CrearUsuarioInput,
   ListarUsuariosQuery,
 } from '../schemas/user.schemas';
@@ -67,6 +74,73 @@ export const userService = {
       message: 'Colaborador registrado exitosamente',
       data: { id, email: input.email },
     };
+  },
+
+  /** HU004: búsqueda unitaria por ID. */
+  async obtener(id: string): Promise<ApiResponse<UsuarioListadoRow>> {
+    const usuario = await userRepository.obtenerPorId(id);
+    if (!usuario) {
+      return fallo('RESOURCE_NOT_FOUND', 'El colaborador con el ID especificado no existe');
+    }
+    return { success: true, message: 'Colaborador obtenido correctamente', data: usuario };
+  },
+
+  /** HU004: búsqueda unitaria por documento de identidad. */
+  async buscarPorDocumento(query: BuscarDocumentoQuery): Promise<ApiResponse<UsuarioListadoRow>> {
+    const usuario = await userRepository.obtenerPorDocumento(query.documento);
+    if (!usuario) {
+      return fallo('RESOURCE_NOT_FOUND', 'No existe un colaborador con ese documento');
+    }
+    return { success: true, message: 'Colaborador encontrado', data: usuario };
+  },
+
+  /** HU005: actualización de datos personales y de contacto. */
+  async actualizar(
+    id: string,
+    input: ActualizarUsuarioInput
+  ): Promise<ApiResponse<UsuarioListadoRow>> {
+    const actual = await userRepository.obtenerPorId(id);
+    if (!actual) {
+      return fallo('RESOURCE_NOT_FOUND', 'El colaborador con el ID especificado no existe');
+    }
+
+    // CA02: unicidad de email excluyendo la propia cuenta
+    if (input.email && input.email !== actual.email) {
+      if (await userRepository.existeEmailOtro(input.email, id)) {
+        return fallo('EMAIL_ALREADY_EXISTS', 'El correo electrónico ya pertenece a otra cuenta');
+      }
+    }
+
+    // CA02: unicidad de documento excluyendo la propia cuenta
+    const tipoDocumento = input.tipo_documento ?? actual.tipo_documento;
+    const numeroDocumento = input.numero_documento ?? actual.numero_documento;
+    if (
+      (input.tipo_documento || input.numero_documento) &&
+      tipoDocumento &&
+      numeroDocumento
+    ) {
+      if (await userRepository.existeDocumentoOtro(tipoDocumento, numeroDocumento, id)) {
+        return fallo('DOCUMENT_ALREADY_EXISTS', 'El documento ya pertenece a otra cuenta');
+      }
+    }
+
+    const data: ActualizarUsuarioData = {
+      email: input.email ?? null,
+      tipo_documento: input.tipo_documento ?? actual.tipo_documento,
+      numero_documento: input.numero_documento ?? actual.numero_documento,
+      nombres: input.nombres ?? actual.nombres,
+      apellidos: input.apellidos ?? actual.apellidos,
+      telefono: input.telefono ?? actual.telefono,
+    };
+
+    await userRepository.actualizar(id, data);
+
+    const actualizado = await userRepository.obtenerPorId(id);
+    if (!actualizado) {
+      return fallo('RESOURCE_NOT_FOUND', 'El colaborador con el ID especificado no existe');
+    }
+
+    return { success: true, message: 'Colaborador actualizado correctamente', data: actualizado };
   },
 
   /** Bloqueo / desbloqueo de cuenta de colaborador. */
