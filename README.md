@@ -164,6 +164,9 @@ Todas las respuestas usan el envelope `{ success, data, message }` o
 | POST | `/api/v1/categories` | ADMIN / SUPER_ADMIN | Crear categoría |
 | PATCH | `/api/v1/categories/:id` | ADMIN / SUPER_ADMIN | Editar / activar / desactivar |
 | DELETE | `/api/v1/categories/:id` | ADMIN / SUPER_ADMIN | Eliminar (bloqueado si tiene productos) |
+| GET | `/api/v1/products` | ADMIN / SUPER_ADMIN | Listado de productos (filtros `search`, `categoria_id`, `activo`) |
+| POST | `/api/v1/products` | ADMIN / SUPER_ADMIN | Crear producto (SKU único + inventario inicial 0/5) |
+| GET | `/api/v1/status` | Público | Estado del sistema (salud, latencia, conteos) |
 
 ---
 

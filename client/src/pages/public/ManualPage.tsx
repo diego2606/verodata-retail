@@ -5,6 +5,7 @@ import {
   Boxes,
   FolderTree,
   LogIn,
+  Package,
   ShieldAlert,
   UserCog,
 } from 'lucide-react';
@@ -18,6 +19,7 @@ const SECTIONS: Section[] = [
   { id: 'acceso', label: 'Acceso al panel' },
   { id: 'colaboradores', label: 'Colaboradores' },
   { id: 'categorias', label: 'Categorías' },
+  { id: 'catalogo', label: 'Catálogo' },
   { id: 'proximamente', label: 'Próximamente' },
 ];
 
@@ -182,6 +184,39 @@ export function ManualPage(): React.ReactElement {
               Solo se puede eliminar una categoría <strong>sin productos asociados</strong>. Si los
               tiene, desactívala en su lugar.
             </p>
+          </section>
+
+          {/* Catálogo */}
+          <section id="catalogo" className="scroll-mt-20">
+            <h2 className="flex items-center gap-sm text-heading-md font-medium text-ink">
+              <Package size={16} className="text-primary-ink" aria-hidden="true" />
+              Catálogo
+            </h2>
+            <div className="mt-md h-px bg-hairline" />
+            <p className="mt-md text-sm leading-relaxed text-ink-mute">
+              Disponible desde el menú <strong>Catálogo</strong>. Permite registrar los artículos que se
+              publican en la tienda.
+            </p>
+
+            <h3 className="mt-lg text-sm font-medium text-ink">Registrar un producto</h3>
+            <ol className="mt-sm space-y-sm">
+              <Step n={1}>Pulsa <strong>Nuevo producto</strong>.</Step>
+              <Step n={2}>
+                Completa la <strong>categoría</strong>, el <strong>SKU</strong> (código único), el{' '}
+                <strong>nombre</strong> y la <strong>descripción</strong>.
+              </Step>
+              <Step n={3}>
+                Indica el <strong>precio regular</strong> y, opcionalmente, un{' '}
+                <strong>precio de oferta</strong> (debe ser menor).
+              </Step>
+              <Step n={4}>
+                Guarda. El artículo se crea con stock inicial <strong>0</strong>.
+              </Step>
+            </ol>
+            <Callout>
+              El <strong>SKU</strong> es único: el sistema rechaza códigos repetidos. El stock se
+              gestiona en el módulo de Inventario.
+            </Callout>
           </section>
 
           {/* Próximamente */}

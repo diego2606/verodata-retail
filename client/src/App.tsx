@@ -9,6 +9,7 @@ import { ManualPage } from './pages/public/ManualPage';
 import { DashboardPage } from './pages/admin/DashboardPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { CategoriesPage } from './pages/admin/CategoriesPage';
+import { ProductsPage } from './pages/admin/ProductsPage';
 import { ComingSoonPage } from './pages/admin/ComingSoonPage';
 
 function App(): React.ReactElement {
@@ -36,15 +37,7 @@ function App(): React.ReactElement {
               </Route>
 
               {/* Módulos de sprints futuros (placeholders navegables) */}
-              <Route
-                path="/admin/products"
-                element={
-                  <ComingSoonPage
-                    title="Catálogo"
-                    description="Categorías y productos (HU006–HU009) estarán disponibles próximamente."
-                  />
-                }
-              />
+              <Route path="/admin/products" element={<ProductsPage />} />
               <Route
                 path="/admin/inventory"
                 element={
