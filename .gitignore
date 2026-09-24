@@ -28,3 +28,16 @@ Thumbs.db
 
 # Vite
 .vite/
+
+# ─── Asistencia de IA / scaffolding (no forma parte del entregable) ───────────
+.ai/
+skills/
+skills-lock.json
+AGENTS.md
+.opencode/
+.cursor/
+.claude/
+.copilot/
+.aider*
+CLAUDE.md
+.github/copilot-instructions.md

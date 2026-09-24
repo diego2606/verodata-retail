@@ -1,13 +1,11 @@
 import { Router } from 'express';
 import { authController } from '../controllers/auth.controller';
-import { authenticate, authorize } from '../../../middlewares/auth.middleware';
 
 const router = Router();
 
-// POST /api/auth/login - Público
+// POST /api/v1/auth/login — público
 router.post('/login', authController.login);
 
-// POST /api/auth/registro - Solo SUPER_ADMIN
-router.post('/registro', authenticate, authorize('SUPER_ADMIN'), authController.registro);
+// NOTA: el alta de personal interno vive en POST /api/v1/users (módulo users).
 
 export default router;

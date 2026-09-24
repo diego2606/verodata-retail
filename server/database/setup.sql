@@ -168,7 +168,7 @@ INSERT INTO roles (nombre, descripcion) VALUES
 -- Super Admin inicial — contraseña: Admin1234! (BCrypt costo 10)
 INSERT INTO usuarios (email, password_hash, rol_id) VALUES (
     'admin@verodata.com',
-    '$2b$10$PLACEHOLDER_REPLACE_WITH_REAL_HASH',
+    '$2b$10$w5lbf0ZKOUsHQzEWViL7re7PTbzMObqBDZY8jeW2iAlQcfzDLkPlW',
     (SELECT id FROM roles WHERE nombre = 'SUPER_ADMIN')
 );
 
