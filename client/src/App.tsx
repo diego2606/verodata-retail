@@ -10,6 +10,8 @@ import { DashboardPage } from './pages/admin/DashboardPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { CategoriesPage } from './pages/admin/CategoriesPage';
 import { ProductsPage } from './pages/admin/ProductsPage';
+import { InventoryPage } from './pages/admin/InventoryPage';
+import { ColorsPage } from './pages/admin/ColorsPage';
 import { ComingSoonPage } from './pages/admin/ComingSoonPage';
 
 function App(): React.ReactElement {
@@ -36,17 +38,12 @@ function App(): React.ReactElement {
                 <Route path="/admin/users" element={<UsersPage />} />
               </Route>
 
-              {/* Módulos de sprints futuros (placeholders navegables) */}
+              {/* Catálogo e Inventario (HU007–HU012) */}
               <Route path="/admin/products" element={<ProductsPage />} />
-              <Route
-                path="/admin/inventory"
-                element={
-                  <ComingSoonPage
-                    title="Inventario"
-                    description="Control de stock y alertas (HU010–HU012) estarán disponibles próximamente."
-                  />
-                }
-              />
+              <Route path="/admin/inventory" element={<InventoryPage />} />
+              <Route path="/admin/colors" element={<ColorsPage />} />
+
+              {/* Módulos de sprints futuros (placeholders navegables) */}
               <Route
                 path="/admin/orders"
                 element={
