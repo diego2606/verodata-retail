@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { Select } from '../../components/ui/Select';
+import { Select, type SelectOption } from '../../components/ui/Select';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient, ApiClientError } from '../../lib/apiClient';
 import type {
@@ -64,6 +64,25 @@ const ROL_BADGE: Record<RolUsuario, string> = {
   ADMIN: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
   CLIENTE: 'bg-zinc-500/10 text-zinc-600 border-zinc-500/20',
 };
+
+const TIPO_DOCUMENTO_OPTIONS: SelectOption[] = [
+  { value: 'DNI', label: 'DNI' },
+  { value: 'PASAPORTE', label: 'Pasaporte' },
+  { value: 'CARNET_EXTRANJERIA', label: 'Carnet de extranjería' },
+];
+
+const ROL_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Todos los roles' },
+  { value: 'SUPER_ADMIN', label: 'Super Admin' },
+  { value: 'ADMIN', label: 'Admin' },
+  { value: 'CLIENTE', label: 'Cliente' },
+];
+
+const ESTADO_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Todos los estados' },
+  { value: 'activo', label: 'Activos' },
+  { value: 'bloqueado', label: 'Bloqueados' },
+];
 
 function RolBadge({ rol }: { rol: RolUsuario }): React.ReactElement {
   return (
@@ -226,6 +245,7 @@ function CreateUserModal({ onClose, onCreated }: CreateUserModalProps): React.Re
     register,
     handleSubmit,
     setValue,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<CrearUsuarioFormValues>({
     resolver: zodResolver(crearUsuarioSchema),
@@ -327,15 +347,21 @@ function CreateUserModal({ onClose, onCreated }: CreateUserModalProps): React.Re
               <label htmlFor="tipo_documento" className={labelClass}>
                 Tipo de documento
               </label>
-              <Select
-                id="tipo_documento"
-                invalid={!!errors.tipo_documento}
-                {...register('tipo_documento')}
-              >
-                <option value="DNI">DNI</option>
-                <option value="PASAPORTE">Pasaporte</option>
-                <option value="CARNET_EXTRANJERIA">Carnet de extranjería</option>
-              </Select>
+              <Controller
+                name="tipo_documento"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    id="tipo_documento"
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    options={TIPO_DOCUMENTO_OPTIONS}
+                    invalid={!!errors.tipo_documento}
+                  />
+                )}
+              />
               <FieldError message={errors.tipo_documento?.message} />
             </div>
             <div>
@@ -426,17 +452,22 @@ function CreateUserModal({ onClose, onCreated }: CreateUserModalProps): React.Re
             )}
             {rolesStatus === 'ready' && (
               <>
-                <Select
-                  id="id_rol"
-                  invalid={!!errors.id_rol}
-                  {...register('id_rol', { valueAsNumber: true })}
-                >
-                  {roles.map(r => (
-                    <option key={r.id} value={r.id}>
-                      {r.nombre}
-                    </option>
-                  ))}
-                </Select>
+                <Controller
+                  name="id_rol"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      id="id_rol"
+                      value={field.value !== undefined ? String(field.value) : ''}
+                      onChange={value => field.onChange(Number(value))}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      placeholder="Seleccionar rol"
+                      options={roles.map(role => ({ value: String(role.id), label: role.nombre }))}
+                      invalid={!!errors.id_rol}
+                    />
+                  )}
+                />
                 <FieldError message={errors.id_rol?.message} />
               </>
             )}
@@ -478,6 +509,7 @@ function EditUserModal({ usuario, onClose, onUpdated }: EditUserModalProps): Rea
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<EditarUsuarioFormValues>({
     resolver: zodResolver(editarUsuarioSchema),
@@ -559,15 +591,21 @@ function EditUserModal({ usuario, onClose, onUpdated }: EditUserModalProps): Rea
               <label htmlFor="edit-tipo_documento" className={labelClass}>
                 Tipo de documento
               </label>
-              <Select
-                id="edit-tipo_documento"
-                invalid={!!errors.tipo_documento}
-                {...register('tipo_documento')}
-              >
-                <option value="DNI">DNI</option>
-                <option value="PASAPORTE">Pasaporte</option>
-                <option value="CARNET_EXTRANJERIA">Carnet de extranjería</option>
-              </Select>
+              <Controller
+                name="tipo_documento"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    id="edit-tipo_documento"
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    options={TIPO_DOCUMENTO_OPTIONS}
+                    invalid={!!errors.tipo_documento}
+                  />
+                )}
+              />
               <FieldError message={errors.tipo_documento?.message} />
             </div>
             <div>
@@ -879,25 +917,18 @@ export function UsersPage(): React.ReactElement {
         </div>
         <Select
           value={rolFilter}
-          onChange={e => setRolFilter(e.target.value as '' | RolUsuario)}
+          onChange={value => setRolFilter(value as '' | RolUsuario)}
+          options={ROL_FILTER_OPTIONS}
           aria-label="Filtrar por rol"
           containerClassName="relative min-w-[160px]"
-        >
-          <option value="">Todos los roles</option>
-          <option value="SUPER_ADMIN">Super Admin</option>
-          <option value="ADMIN">Admin</option>
-          <option value="CLIENTE">Cliente</option>
-        </Select>
+        />
         <Select
           value={estadoFilter}
-          onChange={e => setEstadoFilter(e.target.value as '' | 'activo' | 'bloqueado')}
+          onChange={value => setEstadoFilter(value as '' | 'activo' | 'bloqueado')}
+          options={ESTADO_FILTER_OPTIONS}
           aria-label="Filtrar por estado"
           containerClassName="relative min-w-[160px]"
-        >
-          <option value="">Todos los estados</option>
-          <option value="activo">Activos</option>
-          <option value="bloqueado">Bloqueados</option>
-        </Select>
+        />
       </div>
 
       {/* Tabla */}
