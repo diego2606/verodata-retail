@@ -38,8 +38,8 @@ export default {
         'retail-gold': '#d69e2e',
       },
       fontFamily: {
-        sans: ["'Helvetica Neue'", 'Helvetica', 'Arial', 'sans-serif'],
-        mono: ['ui-monospace', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+        sans: ["'Geist Variable'", "'Helvetica Neue'", 'Helvetica', 'Arial', 'sans-serif'],
+        mono: ["'Geist Mono Variable'", 'ui-monospace', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
       },
       borderRadius: {
         // Backoffice technical radii (6px default)
