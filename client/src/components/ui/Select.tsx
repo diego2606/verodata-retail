@@ -111,11 +111,15 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       case 'Escape':
         if (open) {
           event.preventDefault();
+          event.stopPropagation();
           setOpen(false);
         }
         break;
       case 'Tab':
-        if (open) setOpen(false);
+        if (open) {
+          event.stopPropagation();
+          setOpen(false);
+        }
         break;
       default:
         break;

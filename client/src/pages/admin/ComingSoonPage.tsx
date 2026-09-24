@@ -1,5 +1,6 @@
 import React from 'react';
 import { Construction } from 'lucide-react';
+import { buttonClasses } from '../../components/ui/Button';
 
 interface ComingSoonPageProps {
   title: string;
@@ -32,10 +33,7 @@ export function ComingSoonPage({ title, description }: ComingSoonPageProps): Rea
             Esta sección se habilitará en un próximo sprint.
           </p>
         </div>
-        <a
-          href="/admin/dashboard"
-          className="rounded-xs bg-primary px-sm py-xs text-xs font-medium text-on-primary transition-colors duration-150 hover:bg-primary-deep"
-        >
+        <a href="/admin/dashboard" className={buttonClasses('primary', 'sm')}>
           Volver al dashboard
         </a>
       </div>

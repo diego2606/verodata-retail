@@ -68,6 +68,15 @@ export default {
         'heading-lg': ['22px', { lineHeight: '1.2', fontWeight: '500' }],
         'heading-md': ['18px', { lineHeight: '1.4', fontWeight: '500' }],
       },
+      keyframes: {
+        'modal-in': {
+          from: { opacity: '0', transform: 'translateY(4px) scale(0.98)' },
+          to: { opacity: '1', transform: 'none' },
+        },
+      },
+      animation: {
+        'modal-in': 'modal-in 150ms ease-out',
+      },
     },
   },
   plugins: [],

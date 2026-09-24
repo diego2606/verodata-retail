@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { ShieldAlert } from 'lucide-react';
+import { buttonClasses } from '../components/ui/Button';
 import { useAuth, type UserRole } from '../context/AuthContext';
 
 /**
@@ -27,10 +28,7 @@ export function RoleRoute({ allowed }: { allowed: UserRole[] }): React.ReactElem
             Tu rol no cuenta con permisos para ver esta sección. Contacta a un Super Administrador.
           </p>
         </div>
-        <a
-          href="/admin/dashboard"
-          className="rounded-xs bg-primary px-sm py-xs text-xs font-medium text-on-primary transition-colors duration-150 hover:bg-primary-deep"
-        >
+        <a href="/admin/dashboard" className={buttonClasses('primary', 'sm')}>
           Volver al dashboard
         </a>
       </div>

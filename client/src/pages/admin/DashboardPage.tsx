@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Package, ShoppingCart, Warehouse, Users, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { buttonClasses } from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -124,14 +125,7 @@ export function DashboardPage(): React.ReactElement {
               Agrega productos al catálogo o gestiona pedidos para ver actividad aquí.
             </p>
           </div>
-          <a
-            href="/admin/products"
-            className={cn(
-              'text-xs font-medium text-on-primary bg-primary px-sm py-xs rounded-xs',
-              'hover:bg-primary-deep transition-colors duration-150',
-              'focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2'
-            )}
-          >
+          <a href="/admin/products" className={buttonClasses('primary', 'sm')}>
             Ir al catálogo
           </a>
         </div>

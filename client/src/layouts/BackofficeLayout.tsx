@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, useNavigate, Outlet } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
   Package,
@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -33,6 +34,14 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Pedidos',    href: '/admin/orders',     icon: ShoppingCart },
   { label: 'Usuarios',   href: '/admin/users',      icon: Users, onlyFor: 'SUPER_ADMIN' },
 ];
+
+const SECTION_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  products: 'Catálogo',
+  inventory: 'Inventario',
+  orders: 'Pedidos',
+  users: 'Usuarios',
+};
 
 // ─── Subcomponentes ───────────────────────────────────────────────────────────
 
@@ -70,7 +79,11 @@ function SidebarLink({ item, collapsed }: SidebarLinkProps): React.ReactElement 
 export function BackofficeLayout(): React.ReactElement {
   const { usuario, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+
+  const sectionKey = pathname.split('/').filter(Boolean)[1] ?? 'dashboard';
+  const sectionLabel = SECTION_LABELS[sectionKey] ?? sectionKey;
 
   const handleLogout = (): void => {
     logout();
@@ -87,16 +100,15 @@ export function BackofficeLayout(): React.ReactElement {
       {/* ── Topbar ─────────────────────────────────────────────────────────── */}
       <header className="h-12 bg-canvas border-b border-hairline flex items-center px-xl gap-md shrink-0 z-10">
         {/* Toggle sidebar */}
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           onClick={() => setCollapsed(v => !v)}
           aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
-          className="text-ink-mute hover:text-ink transition-colors p-xs rounded-xs focus-visible:outline-2 focus-visible:outline-primary"
         >
-          {collapsed
-            ? <Menu size={16} aria-hidden="true" />
-            : <X size={16} aria-hidden="true" />}
-        </button>
+          {collapsed ? <Menu size={16} aria-hidden="true" /> : <X size={16} aria-hidden="true" />}
+        </Button>
 
         {/* Brand */}
         <div className="flex items-center gap-xs">
@@ -158,20 +170,20 @@ export function BackofficeLayout(): React.ReactElement {
 
           {/* Logout */}
           <div className="px-sm py-md border-t border-hairline">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={handleLogout}
-              className={cn(
-                'flex items-center rounded-sm w-full text-sm',
-                collapsed ? 'justify-center px-0 py-2' : 'gap-sm px-3 py-2',
-                'text-ink-mute hover:bg-retail-red/8 hover:text-retail-red transition-colors duration-150',
-                'focus-visible:outline-2 focus-visible:outline-retail-red focus-visible:outline-offset-1'
-              )}
               title={collapsed ? 'Cerrar sesión' : undefined}
+              className={cn(
+                'w-full gap-sm rounded-sm text-ink-mute hover:bg-retail-red/8 hover:text-retail-red',
+                'focus-visible:outline-retail-red',
+                collapsed ? 'px-0' : 'justify-start px-3'
+              )}
             >
               <LogOut size={16} className="shrink-0" aria-hidden="true" />
               {!collapsed && <span>Cerrar sesión</span>}
-            </button>
+            </Button>
           </div>
         </aside>
 
@@ -179,8 +191,9 @@ export function BackofficeLayout(): React.ReactElement {
         <main className="flex-1 overflow-auto" role="main">
           {/* Breadcrumb strip */}
           <div className="h-9 bg-canvas border-b border-hairline-cool flex items-center px-xl gap-xs">
+            <span className="text-xs text-ink-mute">admin</span>
             <ChevronRight size={12} className="text-ink-faint" aria-hidden="true" />
-            <span className="text-xs text-ink-mute font-mono">admin</span>
+            <span className="text-xs font-medium text-ink">{sectionLabel}</span>
           </div>
 
           {/* Outlet — páginas hijas */}

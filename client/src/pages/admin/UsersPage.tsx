@@ -16,6 +16,9 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Select, type SelectOption } from '../../components/ui/Select';
+import { Input } from '../../components/ui/Input';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient, ApiClientError } from '../../lib/apiClient';
 import type {
@@ -164,26 +167,42 @@ function TableSkeleton(): React.ReactElement {
 
 // ─── Estados de pantalla ──────────────────────────────────────────────────────
 
-function EmptyState({ onCreate }: { onCreate: () => void }): React.ReactElement {
+interface EmptyStateProps {
+  filtered: boolean;
+  onCreate: () => void;
+  onClear: () => void;
+}
+
+function EmptyState({ filtered, onCreate, onClear }: EmptyStateProps): React.ReactElement {
   return (
     <div className="flex flex-col items-center justify-center gap-md px-lg py-huge text-center">
       <div className="flex h-10 w-10 items-center justify-center rounded-sm border border-hairline bg-canvas-soft" aria-hidden="true">
-        <UserRound size={18} className="text-ink-faint" />
+        {filtered ? (
+          <Search size={18} className="text-ink-faint" />
+        ) : (
+          <UserRound size={18} className="text-ink-faint" />
+        )}
       </div>
       <div>
-        <p className="text-sm font-medium text-ink">Sin colaboradores</p>
+        <p className="text-sm font-medium text-ink">
+          {filtered ? 'Sin resultados' : 'Sin colaboradores'}
+        </p>
         <p className="mt-xs max-w-xs text-xs text-ink-mute">
-          No se encontraron usuarios con los filtros aplicados. Registra al primer miembro del equipo.
+          {filtered
+            ? 'Ningún colaborador coincide con la búsqueda o los filtros aplicados.'
+            : 'Aún no hay usuarios internos. Registra al primer miembro del equipo.'}
         </p>
       </div>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="inline-flex items-center gap-xs rounded-xs bg-primary px-sm py-xs text-xs font-medium text-on-primary transition-colors duration-150 hover:bg-primary-deep"
-      >
-        <Plus size={13} aria-hidden="true" />
-        New User
-      </button>
+      {filtered ? (
+        <Button type="button" variant="secondary" size="sm" onClick={onClear}>
+          Limpiar filtros
+        </Button>
+      ) : (
+        <Button type="button" size="sm" onClick={onCreate}>
+          <Plus size={13} aria-hidden="true" />
+          New User
+        </Button>
+      )}
     </div>
   );
 }
@@ -200,13 +219,9 @@ function ErrorState({ onRetry }: { onRetry: () => void }): React.ReactElement {
           Ocurrió un error al consultar los colaboradores. Vuelve a intentarlo.
         </p>
       </div>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="rounded-xs border border-hairline-strong px-sm py-xs text-xs font-medium text-ink transition-colors duration-150 hover:bg-hairline-cool"
-      >
+      <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
         Reintentar
-      </button>
+      </Button>
     </div>
   );
 }
@@ -226,13 +241,6 @@ function FieldError({ message }: { message?: string }): React.ReactElement | nul
     </p>
   );
 }
-
-const inputClass = (hasError: boolean): string =>
-  cn(
-    'w-full rounded-xs border bg-canvas px-sm py-xs text-sm text-ink transition-colors duration-150',
-    'placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-primary',
-    hasError ? 'border-retail-red/60' : 'border-hairline focus:border-primary'
-  );
 
 const labelClass = 'block text-xs font-medium text-ink mb-xs';
 
@@ -306,13 +314,7 @@ function CreateUserModal({ onClose, onCreated }: CreateUserModalProps): React.Re
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="crear-usuario-titulo"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-lg"
-    >
-      <div className="w-full max-w-lg rounded-sm border border-hairline bg-canvas p-xl">
+    <Modal onClose={onClose} labelledBy="crear-usuario-titulo" panelClassName="max-w-lg">
         <div className="mb-lg flex items-center justify-between">
           <div className="flex items-center gap-sm">
             <ShieldCheck size={16} className="text-primary-ink" aria-hidden="true" />
@@ -320,14 +322,9 @@ function CreateUserModal({ onClose, onCreated }: CreateUserModalProps): React.Re
               Nuevo colaborador interno
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="rounded-xs p-xs text-ink-mute transition-colors hover:bg-hairline-cool hover:text-ink"
-          >
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
             <X size={15} aria-hidden="true" />
-          </button>
+          </Button>
         </div>
 
         {serverError && (
@@ -368,9 +365,10 @@ function CreateUserModal({ onClose, onCreated }: CreateUserModalProps): React.Re
               <label htmlFor="numero_documento" className={labelClass}>
                 Número de documento
               </label>
-              <input
+              <Input
                 id="numero_documento"
-                className={cn(inputClass(!!errors.numero_documento), 'font-mono tabular-nums')}
+                invalid={!!errors.numero_documento}
+                className="font-mono tabular-nums"
                 placeholder="71234567"
                 {...register('numero_documento')}
               />
@@ -383,14 +381,14 @@ function CreateUserModal({ onClose, onCreated }: CreateUserModalProps): React.Re
               <label htmlFor="nombres" className={labelClass}>
                 Nombres
               </label>
-              <input id="nombres" className={inputClass(!!errors.nombres)} {...register('nombres')} />
+              <Input id="nombres" invalid={!!errors.nombres} {...register('nombres')} />
               <FieldError message={errors.nombres?.message} />
             </div>
             <div>
               <label htmlFor="apellidos" className={labelClass}>
                 Apellidos
               </label>
-              <input id="apellidos" className={inputClass(!!errors.apellidos)} {...register('apellidos')} />
+              <Input id="apellidos" invalid={!!errors.apellidos} {...register('apellidos')} />
               <FieldError message={errors.apellidos?.message} />
             </div>
           </div>
@@ -399,11 +397,11 @@ function CreateUserModal({ onClose, onCreated }: CreateUserModalProps): React.Re
             <label htmlFor="email" className={labelClass}>
               Email
             </label>
-            <input
+            <Input
               id="email"
               type="email"
               autoComplete="off"
-              className={inputClass(!!errors.email)}
+              invalid={!!errors.email}
               placeholder="colaborador@verodata.com"
               {...register('email')}
             />
@@ -415,11 +413,11 @@ function CreateUserModal({ onClose, onCreated }: CreateUserModalProps): React.Re
               <label htmlFor="password" className={labelClass}>
                 Contraseña temporal
               </label>
-              <input
+              <Input
                 id="password"
                 type="password"
                 autoComplete="new-password"
-                className={inputClass(!!errors.password)}
+                invalid={!!errors.password}
                 placeholder="••••••••"
                 {...register('password')}
               />
@@ -429,9 +427,10 @@ function CreateUserModal({ onClose, onCreated }: CreateUserModalProps): React.Re
               <label htmlFor="telefono" className={labelClass}>
                 Teléfono <span className="text-ink-faint">(opcional)</span>
               </label>
-              <input
+              <Input
                 id="telefono"
-                className={cn(inputClass(!!errors.telefono), 'tabular-nums')}
+                invalid={!!errors.telefono}
+                className="tabular-nums"
                 {...register('telefono')}
               />
               <FieldError message={errors.telefono?.message} />
@@ -474,24 +473,15 @@ function CreateUserModal({ onClose, onCreated }: CreateUserModalProps): React.Re
           </div>
 
           <div className="flex items-center justify-end gap-sm pt-md">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xs border border-hairline-strong px-sm py-xs text-sm font-medium text-ink transition-colors duration-150 hover:bg-hairline-cool"
-            >
+            <Button type="button" variant="secondary" onClick={onClose}>
               Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || rolesStatus !== 'ready'}
-              className="inline-flex items-center gap-xs rounded-xs bg-primary px-sm py-xs text-sm font-medium text-on-primary transition-colors duration-150 hover:bg-primary-deep disabled:cursor-not-allowed disabled:opacity-60"
-            >
+            </Button>
+            <Button type="submit" isLoading={isSubmitting} disabled={rolesStatus !== 'ready'}>
               {isSubmitting ? 'Registrando…' : 'Registrar colaborador'}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -550,13 +540,7 @@ function EditUserModal({ usuario, onClose, onUpdated }: EditUserModalProps): Rea
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="editar-usuario-titulo"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-lg"
-    >
-      <div className="w-full max-w-lg rounded-sm border border-hairline bg-canvas p-xl">
+    <Modal onClose={onClose} labelledBy="editar-usuario-titulo" panelClassName="max-w-lg">
         <div className="mb-lg flex items-center justify-between">
           <div className="flex items-center gap-sm">
             <Pencil size={16} className="text-primary-ink" aria-hidden="true" />
@@ -564,14 +548,9 @@ function EditUserModal({ usuario, onClose, onUpdated }: EditUserModalProps): Rea
               Editar colaborador
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="rounded-xs p-xs text-ink-mute transition-colors hover:bg-hairline-cool hover:text-ink"
-          >
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
             <X size={15} aria-hidden="true" />
-          </button>
+          </Button>
         </div>
 
         {serverError && (
@@ -612,9 +591,10 @@ function EditUserModal({ usuario, onClose, onUpdated }: EditUserModalProps): Rea
               <label htmlFor="edit-numero_documento" className={labelClass}>
                 Número de documento
               </label>
-              <input
+              <Input
                 id="edit-numero_documento"
-                className={cn(inputClass(!!errors.numero_documento), 'font-mono tabular-nums')}
+                invalid={!!errors.numero_documento}
+                className="font-mono tabular-nums"
                 {...register('numero_documento')}
               />
               <FieldError message={errors.numero_documento?.message} />
@@ -626,14 +606,14 @@ function EditUserModal({ usuario, onClose, onUpdated }: EditUserModalProps): Rea
               <label htmlFor="edit-nombres" className={labelClass}>
                 Nombres
               </label>
-              <input id="edit-nombres" className={inputClass(!!errors.nombres)} {...register('nombres')} />
+              <Input id="edit-nombres" invalid={!!errors.nombres} {...register('nombres')} />
               <FieldError message={errors.nombres?.message} />
             </div>
             <div>
               <label htmlFor="edit-apellidos" className={labelClass}>
                 Apellidos
               </label>
-              <input id="edit-apellidos" className={inputClass(!!errors.apellidos)} {...register('apellidos')} />
+              <Input id="edit-apellidos" invalid={!!errors.apellidos} {...register('apellidos')} />
               <FieldError message={errors.apellidos?.message} />
             </div>
           </div>
@@ -643,16 +623,17 @@ function EditUserModal({ usuario, onClose, onUpdated }: EditUserModalProps): Rea
               <label htmlFor="edit-email" className={labelClass}>
                 Email
               </label>
-              <input id="edit-email" type="email" className={inputClass(!!errors.email)} {...register('email')} />
+              <Input id="edit-email" type="email" invalid={!!errors.email} {...register('email')} />
               <FieldError message={errors.email?.message} />
             </div>
             <div>
               <label htmlFor="edit-telefono" className={labelClass}>
                 Teléfono <span className="text-ink-faint">(opcional)</span>
               </label>
-              <input
+              <Input
                 id="edit-telefono"
-                className={cn(inputClass(!!errors.telefono), 'tabular-nums')}
+                invalid={!!errors.telefono}
+                className="tabular-nums"
                 {...register('telefono')}
               />
               <FieldError message={errors.telefono?.message} />
@@ -664,24 +645,15 @@ function EditUserModal({ usuario, onClose, onUpdated }: EditUserModalProps): Rea
           </p>
 
           <div className="flex items-center justify-end gap-sm pt-md">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xs border border-hairline-strong px-sm py-xs text-sm font-medium text-ink transition-colors duration-150 hover:bg-hairline-cool"
-            >
+            <Button type="button" variant="secondary" onClick={onClose}>
               Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="inline-flex items-center gap-xs rounded-xs bg-primary px-sm py-xs text-sm font-medium text-on-primary transition-colors duration-150 hover:bg-primary-deep disabled:cursor-not-allowed disabled:opacity-60"
-            >
+            </Button>
+            <Button type="submit" isLoading={isSubmitting}>
               {isSubmitting ? 'Guardando…' : 'Guardar cambios'}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -706,13 +678,7 @@ function ConfirmBloqueo({
   const Icon: LucideIcon = next ? Lock : LockOpen;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirmar-bloqueo-titulo"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-lg"
-    >
-      <div className="w-full max-w-sm rounded-sm border border-hairline bg-canvas p-xl">
+    <Modal onClose={onCancel} labelledBy="confirmar-bloqueo-titulo" panelClassName="max-w-sm">
         <div className="mb-md flex items-center gap-sm">
           <Icon size={16} className={next ? 'text-retail-red' : 'text-primary-ink'} aria-hidden="true" />
           <h2 id="confirmar-bloqueo-titulo" className="text-sm font-medium text-ink">
@@ -728,30 +694,19 @@ function ConfirmBloqueo({
           {nombre}
         </p>
         <div className="mt-lg flex items-center justify-end gap-sm">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isProcessing}
-            className="rounded-xs border border-hairline-strong px-sm py-xs text-sm font-medium text-ink transition-colors duration-150 hover:bg-hairline-cool disabled:opacity-60"
-          >
+          <Button type="button" variant="secondary" onClick={onCancel} disabled={isProcessing}>
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={next ? 'danger' : 'primary'}
+            isLoading={isProcessing}
             onClick={onConfirm}
-            disabled={isProcessing}
-            className={cn(
-              'rounded-xs px-sm py-xs text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60',
-              next
-                ? 'bg-retail-red text-white hover:bg-retail-red/90'
-                : 'bg-primary text-on-primary hover:bg-primary-deep'
-            )}
           >
             {isProcessing ? 'Procesando…' : next ? 'Bloquear' : 'Desbloquear'}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -826,6 +781,12 @@ export function UsersPage(): React.ReactElement {
 
   const reload = useCallback((): void => setReloadKey(k => k + 1), []);
 
+  const clearFilters = useCallback((): void => {
+    setSearch('');
+    setRolFilter('');
+    setEstadoFilter('');
+  }, []);
+
   const handleCreated = useCallback(
     (message: string): void => {
       setShowCreate(false);
@@ -878,7 +839,7 @@ export function UsersPage(): React.ReactElement {
   );
 
   return (
-    <div className="max-w-6xl">
+    <div>
 
       {/* Encabezado */}
       <div className="mb-xl flex flex-wrap items-end justify-between gap-md">
@@ -888,14 +849,10 @@ export function UsersPage(): React.ReactElement {
             Personal interno con acceso al panel administrativo.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-xs rounded-xs bg-primary px-sm py-xs text-sm font-medium text-on-primary transition-colors duration-150 hover:bg-primary-deep focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-        >
+        <Button type="button" onClick={() => setShowCreate(true)}>
           <Plus size={15} aria-hidden="true" />
           New User
-        </button>
+        </Button>
       </div>
 
       {/* Barra de filtros */}
@@ -906,13 +863,13 @@ export function UsersPage(): React.ReactElement {
             className="pointer-events-none absolute left-sm top-1/2 -translate-y-1/2 text-ink-faint"
             aria-hidden="true"
           />
-          <input
+          <Input
             type="search"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar por email o documento…"
             aria-label="Buscar colaborador por email o documento"
-            className="w-full rounded-xs border border-hairline bg-canvas py-xs pl-xl pr-sm text-sm text-ink transition-colors duration-150 placeholder:text-ink-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="pl-xl"
           />
         </div>
         <Select
@@ -936,7 +893,11 @@ export function UsersPage(): React.ReactElement {
         {status === 'loading' && <TableSkeleton />}
         {status === 'error' && <ErrorState onRetry={reload} />}
         {status === 'ready' && usuarios.length === 0 && (
-          <EmptyState onCreate={() => setShowCreate(true)} />
+          <EmptyState
+            filtered={hayFiltros}
+            onCreate={() => setShowCreate(true)}
+            onClear={clearFilters}
+          />
         )}
 
         {status === 'ready' && usuarios.length > 0 && (
@@ -972,25 +933,24 @@ export function UsersPage(): React.ReactElement {
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center justify-end gap-xs">
-                          <button
+                          <Button
                             type="button"
+                            variant="secondary"
+                            size="sm"
                             onClick={() => setEditing(u)}
-                            className="inline-flex items-center gap-xs rounded-xs border border-hairline-strong px-sm py-xxs text-xs font-medium text-ink-mute transition-colors duration-150 hover:bg-hairline-cool hover:text-ink"
                           >
                             <Pencil size={12} aria-hidden="true" />
                             Editar
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            variant="secondary"
+                            size="sm"
                             disabled={esUnoMismo}
                             title={esUnoMismo ? 'No puedes bloquear tu propia cuenta' : undefined}
                             onClick={() => setPending({ usuario: u, next: !u.bloqueado })}
                             className={cn(
-                              'inline-flex items-center gap-xs rounded-xs border px-sm py-xxs text-xs font-medium transition-colors duration-150',
-                              'disabled:cursor-not-allowed disabled:opacity-40',
-                              u.bloqueado
-                                ? 'border-primary/20 text-primary-ink hover:bg-primary/10'
-                                : 'border-hairline-strong text-ink-mute hover:bg-hairline-cool hover:text-ink'
+                              u.bloqueado && 'border-primary/20 text-primary-ink hover:bg-primary/10'
                             )}
                           >
                             {u.bloqueado ? (
@@ -1004,7 +964,7 @@ export function UsersPage(): React.ReactElement {
                                 Bloquear
                               </>
                             )}
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>

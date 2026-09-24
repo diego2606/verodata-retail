@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { AlertTriangle, Eye, EyeOff, Loader2, Lock, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { Input } from '../../components/ui/Input';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
 import { useAuth, type AuthUser } from '../../context/AuthContext';
 import { apiClient, ApiClientError } from '../../lib/apiClient';
 
@@ -139,13 +142,12 @@ export function LoginPage(): React.ReactElement {
 
       {/* ── Modal de bloqueo de seguridad (3 intentos) ────────────────────── */}
       {bloqueado && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="modal-bloqueo-titulo"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-auth-canvas/80 p-lg"
+        <Modal
+          onClose={() => setBloqueado(false)}
+          labelledBy="modal-bloqueo-titulo"
+          overlayClassName="bg-auth-canvas/80"
+          panelClassName="max-w-sm border-auth-hairline bg-auth-surface"
         >
-          <div className="w-full max-w-sm rounded-sm border border-auth-hairline bg-auth-surface p-xl">
             <div className="flex items-center gap-sm mb-md">
               <AlertTriangle size={18} className="text-retail-red shrink-0" aria-hidden="true" />
               <h2 id="modal-bloqueo-titulo" className="text-sm font-medium text-auth-text">
@@ -157,23 +159,25 @@ export function LoginPage(): React.ReactElement {
               acceso ha sido suspendido temporalmente.
             </p>
             <div className="flex flex-col gap-xs">
-              <button
+              <Button
                 type="button"
+                size="sm"
+                className="w-full"
                 onClick={() => setShowHelp(true)}
-                className="w-full rounded-xs bg-primary py-xs px-sm text-xs font-medium text-on-primary transition-colors duration-150 hover:bg-primary-deep"
               >
                 Restablecer contraseña
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full text-auth-muted hover:bg-auth-canvas hover:text-auth-text"
                 onClick={() => setBloqueado(false)}
-                className="py-xs text-center text-xs text-auth-muted transition-colors duration-150 hover:text-auth-text"
               >
                 Esperar e intentar de nuevo
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* ── Columna izquierda: formulario ─────────────────────────────────── */}
@@ -215,18 +219,16 @@ export function LoginPage(): React.ReactElement {
                 <label htmlFor="email" className="block text-xs font-medium text-auth-text mb-xs">
                   Email
                 </label>
-                <input
+                <Input
                   id="email"
                   type="email"
                   autoComplete="email"
-                  aria-invalid={!!errors.email}
+                  invalid={!!errors.email}
                   aria-describedby={errors.email ? 'email-error' : undefined}
                   placeholder="admin@verodata.com"
                   className={cn(
-                    'w-full rounded-sm border bg-auth-canvas px-sm py-xs text-sm text-auth-text',
-                    'placeholder:text-auth-muted transition-colors duration-150',
-                    'focus:outline-none focus:ring-1 focus:ring-primary',
-                    errors.email ? 'border-retail-red/60' : 'border-auth-hairline focus:border-primary'
+                    'bg-auth-canvas text-auth-text placeholder:text-auth-muted',
+                    !errors.email && 'border-auth-hairline'
                   )}
                   {...register('email')}
                 />
@@ -243,38 +245,40 @@ export function LoginPage(): React.ReactElement {
                   <label htmlFor="password" className="text-xs font-medium text-auth-text">
                     Password
                   </label>
-                  <button
+                  <Button
                     type="button"
+                    variant="link"
+                    size="none"
                     onClick={() => setShowHelp(v => !v)}
-                    className="text-xs text-auth-muted underline-offset-2 transition-colors duration-150 hover:text-primary hover:underline"
+                    className="text-xs text-auth-muted hover:text-primary"
                   >
                     Forgot password?
-                  </button>
+                  </Button>
                 </div>
                 <div className="relative">
-                  <input
+                  <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
-                    aria-invalid={!!errors.password}
+                    invalid={!!errors.password}
                     aria-describedby={errors.password ? 'password-error' : undefined}
                     placeholder="••••••••"
                     className={cn(
-                      'w-full rounded-sm border bg-auth-canvas px-sm py-xs pr-9 text-sm text-auth-text',
-                      'placeholder:text-auth-muted transition-colors duration-150',
-                      'focus:outline-none focus:ring-1 focus:ring-primary',
-                      errors.password ? 'border-retail-red/60' : 'border-auth-hairline focus:border-primary'
+                      'bg-auth-canvas text-auth-text placeholder:text-auth-muted pr-9',
+                      !errors.password && 'border-auth-hairline'
                     )}
                     {...register('password')}
                   />
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={() => setShowPassword(v => !v)}
                     aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                    className="absolute right-sm top-1/2 -translate-y-1/2 text-auth-muted transition-colors hover:text-auth-text"
+                    className="absolute right-sm top-1/2 -translate-y-1/2 text-auth-muted hover:bg-transparent hover:text-auth-text"
                   >
                     {showPassword ? <EyeOff size={14} aria-hidden="true" /> : <Eye size={14} aria-hidden="true" />}
-                  </button>
+                  </Button>
                 </div>
                 {errors.password && (
                   <p id="password-error" role="alert" aria-live="polite" className="mt-xs text-xs text-retail-red">
@@ -295,26 +299,9 @@ export function LoginPage(): React.ReactElement {
               )}
 
               {/* Submit */}
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className={cn(
-                  'w-full rounded-sm bg-primary py-sm px-sm text-sm font-medium text-on-primary',
-                  'transition-colors duration-150 hover:bg-primary-deep',
-                  'focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2',
-                  'disabled:opacity-60 disabled:cursor-not-allowed',
-                  'inline-flex items-center justify-center gap-xs'
-                )}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 size={15} className="animate-spin" aria-hidden="true" />
-                    Verificando…
-                  </>
-                ) : (
-                  'Sign in'
-                )}
-              </button>
+              <Button type="submit" isLoading={isSubmitting} className="w-full">
+                {isSubmitting ? 'Verificando…' : 'Sign in'}
+              </Button>
             </form>
 
             {/* Seguridad */}
