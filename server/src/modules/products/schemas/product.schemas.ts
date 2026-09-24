@@ -26,9 +26,28 @@ export const listarProductosQuerySchema = z.object({
     .optional(),
 });
 
+/** Body de PATCH /api/v1/products/:id (HU008) — no permite cambiar el SKU */
+export const actualizarProductoSchema = z
+  .object({
+    categoria_id: z.number().int().positive({ message: 'Categoría inválida' }).optional(),
+    nombre: z.string().trim().min(2, { message: 'Mínimo 2 caracteres' }).max(150).optional(),
+    descripcion: z.string().trim().min(1, { message: 'La descripción es obligatoria' }).max(1000).optional(),
+    precio_regular: z.number().positive({ message: 'El precio debe ser mayor a 0' }).optional(),
+    // null = quitar la oferta; ausente = no modificar
+    precio_oferta: z.preprocess(
+      (v) => (v === '' || (typeof v === 'number' && Number.isNaN(v)) ? undefined : v),
+      z.number().positive({ message: 'El precio de oferta debe ser mayor a 0' }).nullable().optional()
+    ),
+    imagen_url: z.string().trim().url({ message: 'URL inválida' }).max(500).optional().or(z.literal('')),
+  })
+  .refine((data) => Object.values(data).some((value) => value !== undefined), {
+    message: 'Debe enviar al menos un campo para actualizar',
+  });
+
 export const productoIdParamSchema = z.object({
   id: z.string().uuid({ message: 'Identificador de producto inválido' }),
 });
 
 export type CrearProductoInput = z.infer<typeof crearProductoSchema>;
+export type ActualizarProductoInput = z.infer<typeof actualizarProductoSchema>;
 export type ListarProductosQuery = z.infer<typeof listarProductosQuerySchema>;

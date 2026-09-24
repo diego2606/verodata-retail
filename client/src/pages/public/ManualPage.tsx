@@ -213,6 +213,13 @@ export function ManualPage(): React.ReactElement {
                 Guarda. El artículo se crea con stock inicial <strong>0</strong>.
               </Step>
             </ol>
+
+            <h3 className="mt-lg text-sm font-medium text-ink">Editar un producto</h3>
+            <p className="mt-xs text-sm leading-relaxed text-ink-mute">
+              Pulsa <strong>Editar</strong> en la fila del producto para actualizar su nombre,
+              descripción, categoría y precios. El <strong>SKU</strong> no se modifica. Los cambios de
+              precio no afectan a los pedidos ya registrados.
+            </p>
             <Callout>
               El <strong>SKU</strong> es único: el sistema rechaza códigos repetidos. El stock se
               gestiona en el módulo de Inventario.

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { AlertTriangle, Package, Plus, Search, X } from 'lucide-react';
+import { AlertTriangle, Package, Pencil, Plus, Search, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
@@ -11,7 +11,11 @@ import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { apiClient, ApiClientError } from '../../lib/apiClient';
 import type { CategoriaItem } from '../../types/category.types';
-import type { CrearProductoPayload, ProductoItem } from '../../types/product.types';
+import type {
+  ActualizarProductoPayload,
+  CrearProductoPayload,
+  ProductoItem,
+} from '../../types/product.types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -48,6 +52,29 @@ const productoSchema = z
   });
 
 type ProductoFormValues = z.infer<typeof productoSchema>;
+
+// ─── Schema de edición (HU008 — el SKU no se modifica) ────────────────────────
+
+const editarProductoSchema = z
+  .object({
+    categoria_id: z.number().int().positive('Selecciona una categoría'),
+    nombre: z.string().trim().min(2, 'Mínimo 2 caracteres').max(150),
+    descripcion: z.string().trim().min(1, 'La descripción es obligatoria').max(1000),
+    precio_regular: z
+      .number({ invalid_type_error: 'Ingresa un precio válido' })
+      .positive('El precio debe ser mayor a 0'),
+    precio_oferta: z.preprocess(
+      (v) => (v === '' || v === null || (typeof v === 'number' && Number.isNaN(v)) ? undefined : v),
+      z.number().positive('El precio de oferta debe ser mayor a 0').optional()
+    ),
+    imagen_url: z.string().trim().url('URL inválida').max(500).optional().or(z.literal('')),
+  })
+  .refine((d) => d.precio_oferta === undefined || d.precio_oferta < d.precio_regular, {
+    message: 'El precio de oferta debe ser menor que el precio regular',
+    path: ['precio_oferta'],
+  });
+
+type EditarProductoFormValues = z.infer<typeof editarProductoSchema>;
 
 const ESTADO_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'Todos los estados' },
@@ -127,6 +154,9 @@ function TableHeader(): React.ReactElement {
             {label}
           </th>
         ))}
+        <th className="px-3 py-2.5 text-right font-mono text-xs font-medium uppercase tracking-widest text-ink-mute">
+          Acciones
+        </th>
       </tr>
     </thead>
   );
@@ -146,6 +176,7 @@ function TableSkeleton(): React.ReactElement {
               <td className="px-3 py-2.5"><div className="h-3 w-16 rounded-full bg-hairline-cool animate-pulse" /></td>
               <td className="px-3 py-2.5"><div className="h-3 w-10 rounded-full bg-hairline-cool animate-pulse" /></td>
               <td className="px-3 py-2.5"><div className="h-4 w-16 rounded-xs bg-hairline-cool animate-pulse" /></td>
+              <td className="px-3 py-2.5"><div className="ml-auto h-5 w-20 rounded-xs bg-hairline-cool animate-pulse" /></td>
             </tr>
           ))}
         </tbody>
@@ -443,6 +474,227 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps): Re
   );
 }
 
+// ─── Modal de edición (HU008) ─────────────────────────────────────────────────
+
+interface EditProductModalProps {
+  producto: ProductoItem;
+  onClose: () => void;
+  onUpdated: (message: string) => void;
+}
+
+function EditProductModal({ producto, onClose, onUpdated }: EditProductModalProps): React.ReactElement {
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [categorias, setCategorias] = useState<CategoriaItem[]>([]);
+  const [categoriasStatus, setCategoriasStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<EditarProductoFormValues>({
+    resolver: zodResolver(editarProductoSchema),
+    defaultValues: {
+      categoria_id: producto.categoria_id,
+      nombre: producto.nombre,
+      descripcion: producto.descripcion ?? '',
+      precio_regular: producto.precio_regular,
+      precio_oferta: producto.precio_oferta ?? undefined,
+      imagen_url: producto.imagen_url ?? '',
+    },
+  });
+
+  useEffect(() => {
+    let active = true;
+    apiClient
+      .get<CategoriaItem[]>('/api/v1/categories')
+      .then(json => {
+        if (!active) return;
+        if (!json.success) {
+          setCategoriasStatus('error');
+          return;
+        }
+        setCategorias(json.data);
+        setCategoriasStatus('ready');
+      })
+      .catch(() => {
+        if (active) setCategoriasStatus('error');
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const onSubmit = async (values: EditarProductoFormValues): Promise<void> => {
+    setServerError(null);
+
+    const payload: ActualizarProductoPayload = {
+      categoria_id: values.categoria_id,
+      nombre: values.nombre,
+      descripcion: values.descripcion,
+      precio_regular: values.precio_regular,
+      precio_oferta: values.precio_oferta ?? null,
+      imagen_url: values.imagen_url ?? '',
+    };
+
+    try {
+      const json = await apiClient.patch<ProductoItem>(`/api/v1/products/${producto.id}`, payload);
+      if (!json.success) {
+        setServerError(json.error.message);
+        return;
+      }
+      onUpdated(`Producto ${json.data.sku} actualizado`);
+    } catch (error) {
+      setServerError(
+        error instanceof ApiClientError ? error.message : 'Error de conexión. Intenta nuevamente.'
+      );
+    }
+  };
+
+  const categoriaOptions: SelectOption[] = categorias.map(c => ({
+    value: String(c.id),
+    label: c.nombre,
+  }));
+
+  return (
+    <Modal onClose={onClose} labelledBy="editar-producto-titulo" panelClassName="max-w-xl">
+      <div className="mb-lg flex items-center justify-between">
+        <div className="flex items-center gap-sm">
+          <Pencil size={16} className="text-primary-ink" aria-hidden="true" />
+          <h2 id="editar-producto-titulo" className="text-sm font-medium text-ink">
+            Editar producto
+          </h2>
+        </div>
+        <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
+          <X size={15} aria-hidden="true" />
+        </Button>
+      </div>
+
+      {serverError && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="mb-md flex items-start gap-xs rounded-xs border border-retail-red/20 bg-retail-red/5 p-sm"
+        >
+          <AlertTriangle size={13} className="mt-px shrink-0 text-retail-red" aria-hidden="true" />
+          <p className="text-xs text-ink-secondary">{serverError}</p>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-md">
+        <div className="grid grid-cols-2 gap-md">
+          <div>
+            <label htmlFor="edit-sku" className={labelClass}>
+              SKU
+            </label>
+            <Input id="edit-sku" value={producto.sku} readOnly disabled className="font-mono" />
+          </div>
+          <div>
+            <label htmlFor="edit-categoria_id" className={labelClass}>
+              Categoría
+            </label>
+            {categoriasStatus === 'loading' && (
+              <div className="h-9 animate-pulse rounded-xs bg-hairline-cool" aria-busy="true" />
+            )}
+            {categoriasStatus === 'error' && (
+              <p className="rounded-xs border border-retail-red/20 bg-retail-red/5 p-sm text-xs text-ink-secondary">
+                No se pudieron cargar las categorías.
+              </p>
+            )}
+            {categoriasStatus === 'ready' && (
+              <>
+                <Controller
+                  name="categoria_id"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      id="edit-categoria_id"
+                      value={field.value !== undefined ? String(field.value) : ''}
+                      onChange={value => field.onChange(Number(value))}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      placeholder="Seleccionar categoría"
+                      options={categoriaOptions}
+                      invalid={!!errors.categoria_id}
+                    />
+                  )}
+                />
+                <FieldError message={errors.categoria_id?.message} />
+              </>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="edit-nombre" className={labelClass}>
+            Nombre
+          </label>
+          <Input id="edit-nombre" invalid={!!errors.nombre} {...register('nombre')} />
+          <FieldError message={errors.nombre?.message} />
+        </div>
+
+        <div>
+          <label htmlFor="edit-descripcion" className={labelClass}>
+            Descripción
+          </label>
+          <Textarea id="edit-descripcion" invalid={!!errors.descripcion} {...register('descripcion')} />
+          <FieldError message={errors.descripcion?.message} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-md">
+          <div>
+            <label htmlFor="edit-precio_regular" className={labelClass}>
+              Precio regular (S/)
+            </label>
+            <Input
+              id="edit-precio_regular"
+              type="number"
+              step="0.01"
+              min="0"
+              invalid={!!errors.precio_regular}
+              className="tabular-nums"
+              {...register('precio_regular', { valueAsNumber: true })}
+            />
+            <FieldError message={errors.precio_regular?.message} />
+          </div>
+          <div>
+            <label htmlFor="edit-precio_oferta" className={labelClass}>
+              Precio oferta (S/) <span className="text-ink-faint">(opcional)</span>
+            </label>
+            <Input
+              id="edit-precio_oferta"
+              type="number"
+              step="0.01"
+              min="0"
+              invalid={!!errors.precio_oferta}
+              className="tabular-nums"
+              {...register('precio_oferta', { valueAsNumber: true })}
+            />
+            <FieldError message={errors.precio_oferta?.message} />
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="edit-imagen_url" className={labelClass}>
+            URL de imagen <span className="text-ink-faint">(opcional)</span>
+          </label>
+          <Input id="edit-imagen_url" invalid={!!errors.imagen_url} {...register('imagen_url')} />
+          <FieldError message={errors.imagen_url?.message} />
+        </div>
+
+        <div className="flex items-center justify-end gap-sm pt-md">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" isLoading={isSubmitting} disabled={categoriasStatus !== 'ready'}>
+            {isSubmitting ? 'Guardando…' : 'Guardar cambios'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 // ─── Página ───────────────────────────────────────────────────────────────────
 
 interface ToastState {
@@ -462,6 +714,7 @@ export function ProductsPage(): React.ReactElement {
   const [estadoFilter, setEstadoFilter] = useState<'' | 'activo' | 'inactivo'>('');
 
   const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState<ProductoItem | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   useEffect(() => {
@@ -531,6 +784,15 @@ export function ProductsPage(): React.ReactElement {
   const handleCreated = useCallback(
     (message: string): void => {
       setShowCreate(false);
+      setToast({ type: 'success', message });
+      reload();
+    },
+    [reload]
+  );
+
+  const handleUpdated = useCallback(
+    (message: string): void => {
+      setEditing(null);
       setToast({ type: 'success', message });
       reload();
     },
@@ -634,6 +896,19 @@ export function ProductsPage(): React.ReactElement {
                     <td className="px-3 py-2.5">
                       <EstadoBadge activo={p.activo} />
                     </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-end gap-xs">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setEditing(p)}
+                        >
+                          <Pencil size={12} aria-hidden="true" />
+                          Editar
+                        </Button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -650,6 +925,13 @@ export function ProductsPage(): React.ReactElement {
 
       {showCreate && (
         <CreateProductModal onClose={() => setShowCreate(false)} onCreated={handleCreated} />
+      )}
+      {editing && (
+        <EditProductModal
+          producto={editing}
+          onClose={() => setEditing(null)}
+          onUpdated={handleUpdated}
+        />
       )}
 
       {toast && (

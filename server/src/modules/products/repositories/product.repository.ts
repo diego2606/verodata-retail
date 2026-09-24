@@ -27,6 +27,16 @@ export interface CrearProductoData {
   imagen_url: string | null;
 }
 
+/** Campos ausentes (undefined) = no se modifican. */
+export interface ActualizarProductoData {
+  categoria_id?: number;
+  nombre?: string;
+  descripcion?: string;
+  precio_regular?: number;
+  precio_oferta?: number | null;
+  imagen_url?: string | null;
+}
+
 const SELECT_PRODUCTO = `
   SELECT
     p.id,
@@ -124,5 +134,33 @@ export const productRepository = {
     } finally {
       client.release();
     }
+  },
+
+  /**
+   * HU008: actualización dinámica de la ficha. Solo cambia los campos enviados
+   * (undefined = no modificar; null = limpiar). Actualiza `actualizado_en` (CA03).
+   * No toca `sku` ni afecta snapshots históricos de pedidos (CA04).
+   */
+  async actualizar(id: string, data: ActualizarProductoData): Promise<void> {
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    const add = (column: string, value: unknown): void => {
+      sets.push(`${column} = $${idx++}`);
+      values.push(value);
+    };
+
+    if (data.categoria_id !== undefined) add('categoria_id', data.categoria_id);
+    if (data.nombre !== undefined) add('nombre', data.nombre);
+    if (data.descripcion !== undefined) add('descripcion', data.descripcion);
+    if (data.precio_regular !== undefined) add('precio_regular', data.precio_regular);
+    if (data.precio_oferta !== undefined) add('precio_oferta', data.precio_oferta);
+    if (data.imagen_url !== undefined) add('imagen_url', data.imagen_url);
+
+    sets.push('actualizado_en = NOW()');
+    values.push(id);
+
+    await pool.query(`UPDATE productos SET ${sets.join(', ')} WHERE id = $${idx}`, values);
   },
 };

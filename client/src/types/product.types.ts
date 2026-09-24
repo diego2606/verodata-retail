@@ -24,3 +24,13 @@ export interface CrearProductoPayload {
   precio_oferta?: number;
   imagen_url?: string;
 }
+
+/** Contrato de PATCH /api/v1/products/:id (HU008) — el SKU no se modifica */
+export interface ActualizarProductoPayload {
+  categoria_id?: number;
+  nombre?: string;
+  descripcion?: string;
+  precio_regular?: number;
+  precio_oferta?: number | null;
+  imagen_url?: string;
+}

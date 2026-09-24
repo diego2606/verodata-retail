@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import {
+  actualizarProductoSchema,
   crearProductoSchema,
   listarProductosQuerySchema,
+  productoIdParamSchema,
 } from '../schemas/product.schemas';
 import { productService } from '../services/product.service';
 import { ApiFailure } from '../../../shared/types/api.types';
@@ -60,6 +62,38 @@ export const productController = {
       res.status(201).json(result);
     } catch (error) {
       console.error('[ProductController] crear error:', error);
+      res.status(500).json(internalError());
+    }
+  },
+
+  async actualizar(req: Request, res: Response): Promise<void> {
+    try {
+      const params = productoIdParamSchema.safeParse(req.params);
+      if (!params.success) {
+        res.status(400).json(validationError(params.error.flatten().fieldErrors));
+        return;
+      }
+
+      const parsed = actualizarProductoSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(validationError(parsed.error.flatten().fieldErrors));
+        return;
+      }
+
+      const result = await productService.actualizar(params.data.id, parsed.data);
+
+      if (!result.success) {
+        const status =
+          result.error.code === 'RESOURCE_NOT_FOUND' || result.error.code === 'CATEGORY_NOT_FOUND'
+            ? 404
+            : 400;
+        res.status(status).json(result);
+        return;
+      }
+
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('[ProductController] actualizar error:', error);
       res.status(500).json(internalError());
     }
   },

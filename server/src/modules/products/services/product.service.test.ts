@@ -7,6 +7,7 @@ vi.mock('../repositories/product.repository', () => ({
     existeSku: vi.fn(),
     existeCategoria: vi.fn(),
     crear: vi.fn(),
+    actualizar: vi.fn(),
   },
 }));
 
@@ -20,6 +21,7 @@ const repo = productRepository as unknown as {
   existeSku: ReturnType<typeof vi.fn>;
   existeCategoria: ReturnType<typeof vi.fn>;
   crear: ReturnType<typeof vi.fn>;
+  actualizar: ReturnType<typeof vi.fn>;
 };
 
 const row: ProductoRow = {
@@ -85,5 +87,35 @@ describe('productService.listar (HU007)', () => {
     const result = await productService.listar({});
     expect(result.success).toBe(true);
     if (result.success) expect(result.data).toHaveLength(1);
+  });
+});
+
+describe('productService.actualizar (HU008)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    repo.obtenerPorId.mockResolvedValue(row);
+    repo.existeCategoria.mockResolvedValue(true);
+    repo.actualizar.mockResolvedValue(undefined);
+  });
+
+  it('devuelve RESOURCE_NOT_FOUND si el producto no existe', async () => {
+    repo.obtenerPorId.mockResolvedValue(null);
+    const result = await productService.actualizar('p-x', { nombre: 'Nuevo' });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('RESOURCE_NOT_FOUND');
+  });
+
+  it('rechaza oferta >= regular con INVALID_PRICE (valores resultantes)', async () => {
+    repo.obtenerPorId.mockResolvedValue({ ...row, precio_oferta: 90 });
+    const result = await productService.actualizar('p1', { precio_regular: 80 });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('INVALID_PRICE');
+    expect(repo.actualizar).not.toHaveBeenCalled();
+  });
+
+  it('actualiza y devuelve el producto', async () => {
+    const result = await productService.actualizar('p1', { nombre: 'Zapatilla Pro' });
+    expect(result.success).toBe(true);
+    expect(repo.actualizar).toHaveBeenCalledOnce();
   });
 });

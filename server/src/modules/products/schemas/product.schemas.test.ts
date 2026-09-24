@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { crearProductoSchema, listarProductosQuerySchema } from './product.schemas';
+import {
+  actualizarProductoSchema,
+  crearProductoSchema,
+  listarProductosQuerySchema,
+} from './product.schemas';
 
 const base = {
   categoria_id: 1,
@@ -45,5 +49,25 @@ describe('listarProductosQuerySchema (HU007)', () => {
       expect(result.data.categoria_id).toBe(3);
       expect(result.data.activo).toBe(true);
     }
+  });
+});
+
+describe('actualizarProductoSchema (HU008)', () => {
+  it('rechaza body vacío', () => {
+    expect(actualizarProductoSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('acepta actualizar solo el precio regular', () => {
+    expect(actualizarProductoSchema.safeParse({ precio_regular: 120 }).success).toBe(true);
+  });
+
+  it('acepta precio_oferta null para quitar la oferta', () => {
+    const result = actualizarProductoSchema.safeParse({ precio_oferta: null });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.precio_oferta).toBeNull();
+  });
+
+  it('rechaza precio regular negativo', () => {
+    expect(actualizarProductoSchema.safeParse({ precio_regular: -5 }).success).toBe(false);
   });
 });
