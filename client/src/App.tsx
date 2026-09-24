@@ -7,6 +7,7 @@ import { BackofficeLayout } from './layouts/BackofficeLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { DashboardPage } from './pages/admin/DashboardPage';
 import { UsersPage } from './pages/admin/UsersPage';
+import { CategoriesPage } from './pages/admin/CategoriesPage';
 import { ComingSoonPage } from './pages/admin/ComingSoonPage';
 
 function App(): React.ReactElement {
@@ -25,6 +26,7 @@ function App(): React.ReactElement {
             <Route element={<BackofficeLayout />}>
               <Route path="/admin"           element={<Navigate to="/admin/dashboard" replace />} />
               <Route path="/admin/dashboard" element={<DashboardPage />} />
+              <Route path="/admin/categories" element={<CategoriesPage />} />
 
               {/* Rutas exclusivas de SUPER_ADMIN (RBAC) */}
               <Route element={<RoleRoute allowed={['SUPER_ADMIN']} />}>

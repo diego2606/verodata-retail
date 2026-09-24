@@ -3,6 +3,7 @@ import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
   Package,
+  Tags,
   Warehouse,
   ShoppingCart,
   Users,
@@ -30,6 +31,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard',  href: '/admin/dashboard',  icon: LayoutDashboard },
   { label: 'Catálogo',   href: '/admin/products',   icon: Package },
+  { label: 'Categorías', href: '/admin/categories', icon: Tags },
   { label: 'Inventario', href: '/admin/inventory',  icon: Warehouse },
   { label: 'Pedidos',    href: '/admin/orders',     icon: ShoppingCart },
   { label: 'Usuarios',   href: '/admin/users',      icon: Users, onlyFor: 'SUPER_ADMIN' },
@@ -38,6 +40,7 @@ const NAV_ITEMS: NavItem[] = [
 const SECTION_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
   products: 'Catálogo',
+  categories: 'Categorías',
   inventory: 'Inventario',
   orders: 'Pedidos',
   users: 'Usuarios',

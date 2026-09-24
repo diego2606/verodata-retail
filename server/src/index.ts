@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import authRoutes from './modules/auth/routes/auth.routes';
 import userRoutes from './modules/users/routes/user.routes';
 import roleRoutes from './modules/users/routes/role.routes';
+import categoryRoutes from './modules/categories/routes/category.routes';
 import { testConnection } from './config/db';
 
 dotenv.config();
@@ -25,6 +26,7 @@ app.get('/health', (_req, res) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/roles', roleRoutes);
+app.use('/api/v1/categories', categoryRoutes);
 
 // 404 handler
 app.use((_req, res) => {
