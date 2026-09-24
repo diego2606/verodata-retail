@@ -5,6 +5,7 @@ import { ProtectedRoute } from './router/ProtectedRoute';
 import { RoleRoute } from './router/RoleRoute';
 import { BackofficeLayout } from './layouts/BackofficeLayout';
 import { LoginPage } from './pages/auth/LoginPage';
+import { ManualPage } from './pages/public/ManualPage';
 import { DashboardPage } from './pages/admin/DashboardPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { CategoriesPage } from './pages/admin/CategoriesPage';
@@ -20,6 +21,7 @@ function App(): React.ReactElement {
 
           {/* Rutas públicas */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/documentacion" element={<ManualPage />} />
 
           {/* Rutas protegidas — requieren sesión activa */}
           <Route element={<ProtectedRoute />}>
