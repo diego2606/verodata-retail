@@ -5,6 +5,7 @@ import authRoutes from './modules/auth/routes/auth.routes';
 import userRoutes from './modules/users/routes/user.routes';
 import roleRoutes from './modules/users/routes/role.routes';
 import categoryRoutes from './modules/categories/routes/category.routes';
+import statusRoutes from './modules/status/routes/status.routes';
 import { testConnection } from './config/db';
 
 dotenv.config();
@@ -27,6 +28,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/roles', roleRoutes);
 app.use('/api/v1/categories', categoryRoutes);
+app.use('/api/v1/status', statusRoutes);
 
 // 404 handler
 app.use((_req, res) => {

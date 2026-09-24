@@ -6,6 +6,7 @@ import { ApiFailure, ApiResponse, JwtPayload } from '../../../shared/types/api.t
 
 const JWT_SECRET = process.env.JWT_SECRET ?? '';
 const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN ?? '8h') as string;
+const JWT_REMEMBER_EXPIRES_IN = (process.env.JWT_REMEMBER_EXPIRES_IN ?? '30d') as string;
 const MAX_INTENTOS = 3;
 
 export interface LoginResult {
@@ -47,7 +48,8 @@ export const authService = {
 
     const rol = usuario.nombre_rol as JwtPayload['rol'];
     const payload: JwtPayload = { id_usuario: usuario.id, email: usuario.email, rol };
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions);
+    const expiresIn = data.recordar ? JWT_REMEMBER_EXPIRES_IN : JWT_EXPIRES_IN;
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn } as jwt.SignOptions);
 
     return {
       success: true,

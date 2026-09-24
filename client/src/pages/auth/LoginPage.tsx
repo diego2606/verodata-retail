@@ -1,20 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   AlertTriangle,
-  CreditCard,
   Database,
   ExternalLink,
   Eye,
   EyeOff,
+  Package,
   ShieldCheck,
   Terminal,
-  TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
+import { cn } from '../../lib/utils';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
@@ -37,19 +37,104 @@ interface LoginData {
 
 // ─── Panel izquierdo (marca) ──────────────────────────────────────────────────
 
-interface MetricCard {
-  title: string;
-  value: string;
-  change: string;
-  icon: LucideIcon;
+interface SystemStatus {
+  version: string;
+  db: 'ok' | 'down';
+  latencyMs: number;
+  categoriasActivas: number;
+  productosActivos: number;
+  uptimeSeconds: number;
 }
 
-const METRIC_CARDS: MetricCard[] = [
-  { title: 'Transacciones', value: '1,248', change: '+12.5%', icon: CreditCard },
-  { title: 'Disponibilidad', value: '99.9%', change: '+0.2%', icon: Database },
-];
+type StatusLoadState = 'loading' | 'ready' | 'error';
 
-function BrandPanel(): React.ReactElement {
+interface StatusCard {
+  title: string;
+  value: string;
+  caption: string;
+  icon: LucideIcon;
+  down: boolean;
+}
+
+function StatusCardView({ card }: { card: StatusCard }): React.ReactElement {
+  const Icon = card.icon;
+  return (
+    <div className="flex w-[240px] flex-col gap-3 rounded-lg border border-[#1F2231] bg-[#12141C]/90 p-[18px]">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[11px] font-semibold uppercase leading-[14px] text-[#9CA3AF]">
+          {card.title}
+        </span>
+        <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-[#10B981]/[0.078]">
+          <Icon size={14} className="text-[#10B981]" aria-hidden="true" />
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-[22px] font-bold leading-[29px] tabular-nums text-[#F3F4F6]">
+          {card.value}
+        </span>
+        <div className="flex items-center gap-1">
+          <span
+            className={cn('h-1.5 w-1.5 rounded-full', card.down ? 'bg-retail-red' : 'bg-[#10B981]')}
+            aria-hidden="true"
+          />
+          <span
+            className={cn(
+              'font-mono text-[11px] leading-[14px]',
+              card.down ? 'text-retail-red' : 'text-[#10B981]'
+            )}
+          >
+            {card.caption}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusCardSkeleton(): React.ReactElement {
+  return (
+    <div
+      className="flex w-[240px] flex-col gap-3 rounded-lg border border-[#1F2231] bg-[#12141C]/90 p-[18px]"
+      aria-busy="true"
+    >
+      <div className="flex items-center justify-between">
+        <div className="h-3 w-20 animate-pulse rounded-full bg-white/10" />
+        <div className="h-6 w-6 animate-pulse rounded-sm bg-white/10" />
+      </div>
+      <div className="h-6 w-24 animate-pulse rounded-sm bg-white/10" />
+      <div className="h-3 w-28 animate-pulse rounded-full bg-white/10" />
+    </div>
+  );
+}
+
+function BrandPanel({
+  status,
+  statusState,
+}: {
+  status: SystemStatus | null;
+  statusState: StatusLoadState;
+}): React.ReactElement {
+  const dbOk = status?.db === 'ok';
+
+  const cards: StatusCard[] = status
+    ? [
+        {
+          title: 'Catálogo',
+          value: String(status.productosActivos),
+          caption: `${status.categoriasActivas} categorías activas`,
+          icon: Package,
+          down: false,
+        },
+        {
+          title: 'Latencia',
+          value: `${status.latencyMs} ms`,
+          caption: dbOk ? 'Base de datos operativa' : 'Sin conexión a la base',
+          icon: Database,
+          down: !dbOk,
+        },
+      ]
+    : [];
+
   return (
     <aside
       className="relative hidden lg:flex lg:w-[43.06%] shrink-0 flex-col justify-between overflow-hidden border-r border-[#1F2231] p-12"
@@ -90,43 +175,42 @@ function BrandPanel(): React.ReactElement {
           Estado del sistema
         </span>
         <div className="flex flex-wrap gap-4">
-          {METRIC_CARDS.map(card => {
-            const Icon = card.icon;
-            return (
-              <div
-                key={card.title}
-                className="flex w-[240px] flex-col gap-3 rounded-lg border border-[#1F2231] bg-[#12141C]/90 p-[18px]"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[11px] font-semibold uppercase leading-[14px] text-[#9CA3AF]">
-                    {card.title}
-                  </span>
-                  <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-[#10B981]/[0.078]">
-                    <Icon size={14} className="text-[#10B981]" aria-hidden="true" />
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[22px] font-bold leading-[29px] tabular-nums text-[#F3F4F6]">
-                    {card.value}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <TrendingUp size={12} className="text-[#10B981]" aria-hidden="true" />
-                    <span className="font-mono text-[11px] leading-[14px] text-[#10B981]">
-                      {card.change}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {statusState === 'loading' && (
+            <>
+              <StatusCardSkeleton />
+              <StatusCardSkeleton />
+            </>
+          )}
+          {statusState === 'error' && (
+            <>
+              <StatusCardView
+                card={{ title: 'Catálogo', value: '—', caption: 'No disponible', icon: Package, down: true }}
+              />
+              <StatusCardView
+                card={{ title: 'Latencia', value: '—', caption: 'No disponible', icon: Database, down: true }}
+              />
+            </>
+          )}
+          {statusState === 'ready' &&
+            cards.map(card => <StatusCardView key={card.title} card={card} />)}
         </div>
       </div>
 
       {/* panel-footer */}
       <div className="flex items-center gap-3">
-        <span className="h-2 w-2 shrink-0 rounded-full bg-[#10B981]" aria-hidden="true" />
+        <span
+          className={cn(
+            'h-2 w-2 shrink-0 rounded-full',
+            statusState === 'loading' ? 'bg-[#4B5563]' : dbOk ? 'bg-[#10B981]' : 'bg-retail-red'
+          )}
+          aria-hidden="true"
+        />
         <span className="font-mono text-xs leading-4 text-[#9CA3AF]">
-          Todos los sistemas operativos
+          {statusState === 'loading'
+            ? 'Verificando estado…'
+            : dbOk
+              ? 'Todos los sistemas operativos'
+              : 'Servicio degradado'}
         </span>
       </div>
     </aside>
@@ -140,9 +224,12 @@ export function LoginPage(): React.ReactElement {
   const navigate = useNavigate();
 
   const [showPassword, setShowPassword] = useState(false);
+  const [recordar, setRecordar] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [bloqueado, setBloqueado] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [statusState, setStatusState] = useState<StatusLoadState>('loading');
 
   const {
     register,
@@ -150,12 +237,34 @@ export function LoginPage(): React.ReactElement {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
 
+  // Estado público del sistema (tarjetas del panel de marca)
+  useEffect(() => {
+    let active = true;
+    apiClient
+      .get<SystemStatus>('/api/v1/status')
+      .then(json => {
+        if (!active) return;
+        if (!json.success) {
+          setStatusState('error');
+          return;
+        }
+        setStatus(json.data);
+        setStatusState('ready');
+      })
+      .catch(() => {
+        if (active) setStatusState('error');
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const onSubmit = async (values: LoginFormValues): Promise<void> => {
     setServerError(null);
     setBloqueado(false);
 
     try {
-      const json = await apiClient.post<LoginData>('/api/v1/auth/login', values);
+      const json = await apiClient.post<LoginData>('/api/v1/auth/login', { ...values, recordar });
 
       if (!json.success) {
         // CA04 (HU015): 3 intentos fallidos → modal de seguridad
@@ -172,7 +281,7 @@ export function LoginPage(): React.ReactElement {
         email: json.data.usuario.email,
         rol: json.data.usuario.rol as AuthUser['rol'],
       };
-      login(json.data.token, authUser);
+      login(json.data.token, authUser, recordar);
       navigate('/admin/dashboard', { replace: true });
     } catch (error) {
       setServerError(
@@ -221,13 +330,13 @@ export function LoginPage(): React.ReactElement {
       )}
 
       {/* ── Panel izquierdo (marca) ───────────────────────────────────────── */}
-      <BrandPanel />
+      <BrandPanel status={status} statusState={statusState} />
 
       {/* ── Panel derecho (formulario) ────────────────────────────────────── */}
       <div className="flex w-full flex-col bg-[#0C0D12] px-6 pb-12 pt-16 lg:flex-1 lg:px-[120px] lg:pb-12">
         {/* top-actions */}
         <div className="flex items-center justify-between">
-          <span className="font-mono text-xs leading-4 text-[#4B5563]">v1.0.0</span>
+          <span className="font-mono text-xs leading-4 text-[#4B5563]">v{status?.version ?? '1.0.0'}</span>
           <Link
             to="/documentacion"
             className="flex items-center gap-1.5 font-mono text-xs leading-4 text-[#9CA3AF] transition-colors hover:text-[#F3F4F6]"
@@ -326,7 +435,12 @@ export function LoginPage(): React.ReactElement {
               {/* form-options */}
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 text-[13px] leading-[17px] text-[#9CA3AF]">
-                  <input type="checkbox" className="h-4 w-4 rounded-xs accent-[#10B981]" />
+                  <input
+                    type="checkbox"
+                    checked={recordar}
+                    onChange={e => setRecordar(e.target.checked)}
+                    className="h-4 w-4 rounded-xs accent-[#10B981]"
+                  />
                   Recordarme
                 </label>
                 <button
@@ -362,12 +476,6 @@ export function LoginPage(): React.ReactElement {
                     />
                   )}
                   {isSubmitting ? 'Verificando…' : 'Ingresar'}
-                </button>
-                <button
-                  type="button"
-                  className="flex h-11 items-center justify-center rounded-md border border-[#1F2231] text-sm font-medium text-[#F3F4F6] transition-colors duration-150 hover:bg-[#12141C]"
-                >
-                  Acceder con SSO
                 </button>
               </div>
             </form>

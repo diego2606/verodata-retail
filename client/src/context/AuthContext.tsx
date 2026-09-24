@@ -18,7 +18,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (token: string, usuario: AuthUser) => void;
+  login: (token: string, usuario: AuthUser, recordar?: boolean) => void;
   logout: () => void;
 }
 
@@ -27,19 +27,24 @@ interface AuthContextValue extends AuthState {
 const TOKEN_KEY = 'verodata_token';
 const USER_KEY  = 'verodata_user';
 
-function persistSession(token: string, usuario: AuthUser): void {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify(usuario));
+/** Persiste la sesión: `localStorage` si "recordar", `sessionStorage` si no. */
+function persistSession(token: string, usuario: AuthUser, recordar: boolean): void {
+  clearSession();
+  const store = recordar ? localStorage : sessionStorage;
+  store.setItem(TOKEN_KEY, token);
+  store.setItem(USER_KEY, JSON.stringify(usuario));
 }
 
 function clearSession(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  for (const store of [localStorage, sessionStorage]) {
+    store.removeItem(TOKEN_KEY);
+    store.removeItem(USER_KEY);
+  }
 }
 
 function readSession(): { token: string; usuario: AuthUser } | null {
-  const token   = localStorage.getItem(TOKEN_KEY);
-  const userRaw = localStorage.getItem(USER_KEY);
+  const token   = localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
+  const userRaw = localStorage.getItem(USER_KEY) ?? sessionStorage.getItem(USER_KEY);
   if (!token || !userRaw) return null;
   try {
     const usuario = JSON.parse(userRaw) as AuthUser;
@@ -76,8 +81,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     }
   }, []);
 
-  const login = useCallback((token: string, usuario: AuthUser): void => {
-    persistSession(token, usuario);
+  const login = useCallback((token: string, usuario: AuthUser, recordar = false): void => {
+    persistSession(token, usuario, recordar);
     setState({ token, usuario, isAuthenticated: true, isLoading: false });
   }, []);
 

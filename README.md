@@ -82,6 +82,7 @@ cp client/.env.example client/.env
 | `DB_SSL` | `true` si la base exige SSL (Supabase) |
 | `JWT_SECRET` | Secreto para firmar tokens (largo y aleatorio) |
 | `JWT_EXPIRES_IN` | Vigencia del token (ej. `8h`) |
+| `JWT_REMEMBER_EXPIRES_IN` | Vigencia del token con "Recordarme" (ej. `30d`) |
 | `BCRYPT_ROUNDS` | Costo del hash (mínimo `10`) |
 | `CLIENT_URL` | Origen permitido por CORS |
 
