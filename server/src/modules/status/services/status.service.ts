@@ -9,6 +9,7 @@ export interface SystemStatus {
   latencyMs: number;
   categoriasActivas: number;
   productosActivos: number;
+  productosStockBajo: number;
   uptimeSeconds: number;
 }
 
@@ -22,9 +23,10 @@ export const statusService = {
 
     try {
       const latencyMs = await statusRepository.ping();
-      const [categoriasActivas, productosActivos] = await Promise.all([
+      const [categoriasActivas, productosActivos, productosStockBajo] = await Promise.all([
         statusRepository.contarCategoriasActivas(),
         statusRepository.contarProductosActivos(),
+        statusRepository.contarProductosStockBajo(),
       ]);
 
       return {
@@ -36,6 +38,7 @@ export const statusService = {
           latencyMs,
           categoriasActivas,
           productosActivos,
+          productosStockBajo,
           uptimeSeconds,
         },
       };
@@ -50,6 +53,7 @@ export const statusService = {
           latencyMs: 0,
           categoriasActivas: 0,
           productosActivos: 0,
+          productosStockBajo: 0,
           uptimeSeconds,
         },
       };
