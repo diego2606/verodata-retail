@@ -32,4 +32,12 @@ export const statusRepository = {
     );
     return Number(result.rows[0].count);
   },
+
+  /** Colaboradores internos activos (bloqueado=TRUE equivale a suspendido). */
+  async contarColaboradoresActivos(): Promise<number> {
+    const result = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM usuarios WHERE bloqueado = FALSE`
+    );
+    return Number(result.rows[0].count);
+  },
 };

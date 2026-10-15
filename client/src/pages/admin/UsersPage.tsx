@@ -641,7 +641,7 @@ function EditUserModal({ usuario, onClose, onUpdated }: EditUserModalProps): Rea
           </div>
 
           <p className="rounded-xs border border-hairline-cool bg-canvas-soft px-sm py-xs text-xs text-ink-mute">
-            La contraseña y el rol no se modifican desde aquí (HU005).
+            La contraseña y el rol no se modifican desde aquí.
           </p>
 
           <div className="flex items-center justify-end gap-sm pt-md">

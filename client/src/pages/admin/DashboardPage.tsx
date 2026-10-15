@@ -37,6 +37,7 @@ interface SystemStatus {
   categoriasActivas: number;
   productosActivos: number;
   productosStockBajo: number;
+  colaboradoresActivos: number;
 }
 
 // ─── Componente ───────────────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ export function DashboardPage(): React.ReactElement {
     },
     {
       label: 'Colaboradores',
-      value: '—',
+      value: status ? String(status.colaboradoresActivos) : '—',
       sublabel: 'usuarios internos',
       icon: Users,
     },
