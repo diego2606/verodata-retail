@@ -49,7 +49,7 @@ const RANGOS_PRECIO = {
   Mujer: [39, 399],
   Hombre: [39, 499],
   'Niños y Bebés': [29, 299],
-  Moda: [39, 399],
+  Ropa: [39, 399],
   Calzado: [59, 399],
   Accesorios: [29, 399],
   Tecnología: [199, 6999],
@@ -103,23 +103,45 @@ function limpiarSeccion(nombre) {
   return (limpio || nombre || 'General').slice(0, 100);
 }
 
-/** Departamento de moda: por atributo GENDER; si no, por palabra del nombre del hijo. */
-function departamentoModa(nombreHijo, atributos) {
-  const g = sinAcentos(atributos.GENDER || '');
-  const n = sinAcentos(nombreHijo);
-  const texto = `${g} ${n}`;
-  if (texto.includes('hombre') || texto.includes('masculino')) return 'Hombre';
-  if (texto.includes('mujer') || texto.includes('femenin')) return 'Mujer';
-  if (texto.includes('nin') || texto.includes('bebe')) return 'Niños y Bebés';
-  if (n.includes('calzado') || n.includes('zapat') || n.includes('sandalia')) return 'Calzado';
-  if (n.includes('accesorio') || n.includes('bolso') || n.includes('cartera') || n.includes('equipaje') || n.includes('mochila') || n.includes('lente') || n.includes('reloj')) return 'Accesorios';
-  return 'Moda';
+/** Género (Hombre/Mujer/Niños) inferido de un texto libre; null si no se detecta. */
+function detectarGenero(texto) {
+  const t = sinAcentos(texto || '');
+  if (/(^|\W)(hombre|masculin|caballero|male|boys)(\W|$)/.test(t)) return 'Hombre';
+  if (/(^|\W)(mujer|femenin|dama|women|female|ladies|girls)(\W|$)/.test(t)) return 'Mujer';
+  if (/(nino|nina|ninos|ninas|bebe|bebes|infantil|kids|child)/.test(t)) return 'Niños y Bebés';
+  return null;
+}
+
+/**
+ * Departamento de moda: género (por atributo GENDER, nombre del producto y nombre
+ * del hijo); si no, se separa por tipo (Accesorios / Calzado / Ropa).
+ */
+function destinoModa(nombreHijo, atributos, nombreProducto) {
+  const genero = detectarGenero(`${atributos.GENDER || ''} ${nombreProducto} ${nombreHijo}`);
+  if (genero) return { departamento: genero, seccion: limpiarSeccion(nombreHijo) };
+
+  const n = sinAcentos(`${nombreHijo} ${nombreProducto}`);
+  if (/(accesorio|bolso|cartera|equipaje|mochila|lente|reloj|joya|cinturon|gorro|gorra|bufanda|sombrero)/.test(n)) {
+    return { departamento: 'Accesorios', seccion: limpiarSeccion(nombreHijo) };
+  }
+  if (/(calzado|zapatilla|zapat|sandalia|botin|botines|mocasin)/.test(n)) {
+    return { departamento: 'Calzado', seccion: /zapatilla/.test(n) ? 'Zapatillas' : 'Zapatos' };
+  }
+  return { departamento: 'Ropa', seccion: limpiarSeccion(nombreHijo) };
+}
+
+/** Evita la redundancia "Calzado › Calzado" / "Ropa › Ropa". */
+function conSeccionUnica(destino) {
+  if (slugify(destino.seccion) === slugify(destino.departamento)) {
+    return { departamento: destino.departamento, seccion: destino.departamento === 'Calzado' ? 'Zapatos' : 'Prendas' };
+  }
+  return destino;
 }
 
 /** Resuelve (departamento, sección) para una subcategoría de ML y un producto. */
-function destinoDe(fuente, nombreHijo, atributos) {
+function destinoDe(fuente, nombreHijo, atributos, nombreProducto) {
   if (fuente.tipo === 'moda') {
-    return { departamento: departamentoModa(nombreHijo, atributos), seccion: limpiarSeccion(nombreHijo) };
+    return conSeccionUnica(destinoModa(nombreHijo, atributos, nombreProducto));
   }
   if (fuente.porHijo) {
     return { departamento: fuente.dep, seccion: limpiarSeccion(nombreHijo) };
@@ -247,7 +269,7 @@ async function importarCategoria(fuente, nombreHijo, mlCatId) {
       const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
       const publicUrl = await subirImagen(buffer, contentType, `${sku}.${ext}`);
 
-      const { departamento, seccion } = destinoDe(fuente, nombreHijo, atributos);
+      const { departamento, seccion } = destinoDe(fuente, nombreHijo, atributos, limpiarNombre(r.name));
       const secId = await ensureRuta(departamento, seccion);
 
       const precioReal = detalle.buy_box_winner && detalle.buy_box_winner.price;
