@@ -11,8 +11,9 @@ Sistema de gestión minorista y comercio omnicanal. Monolito modular en capas
 |---|---|
 | Backend | Node.js · TypeScript · Express · PostgreSQL (Supabase) · JWT · BCrypt · Zod |
 | Frontend | React · Vite · TypeScript · Tailwind CSS · react-hook-form |
-| Pruebas | Vitest |
+| Pruebas | Vitest · Testing Library (React) |
 | Lint | ESLint (client) |
+| Calidad | SonarQube Community · SonarLint |
 
 ---
 
@@ -139,6 +140,7 @@ cd client && npm run dev
 | `npm run build` | Compila TypeScript a `dist/` |
 | `npm start` | Ejecuta el build de producción |
 | `npm test` | Ejecuta la suite de pruebas (Vitest) |
+| `npm run test:coverage` | Suite + reporte de cobertura en `coverage/lcov.info` (lo consume SonarQube) |
 | `npm run ml:token` | Obtiene/renueva el `ML_ACCESS_TOKEN` de Mercado Libre |
 | `npm run ml:import` | Importa catálogo de ML (categorías, productos, imágenes a Supabase). Con `RESET=1` limpia el catálogo antes |
 
@@ -150,6 +152,8 @@ cd client && npm run dev
 | `npm run build` | Type-check + build de producción |
 | `npm run preview` | Previsualiza el build |
 | `npm run lint` | ESLint |
+| `npm test` | Ejecuta la suite de pruebas (Vitest + Testing Library) |
+| `npm run test:coverage` | Suite + reporte de cobertura en `coverage/lcov.info` |
 
 ---
 
@@ -192,10 +196,124 @@ Todas las respuestas usan el envelope `{ success, data, message }` o
 ## Pruebas
 
 ```bash
-cd server && npm test
+cd server && npm run test:coverage    # 109 pruebas
+cd client && npm run test:coverage    #  75 pruebas
 ```
 
-Cubren autenticación, alta/edición de colaboradores, categorías y normalización de slugs.
+**Backend:** autenticación, colaboradores, categorías, productos, inventario,
+storefront y utilidades compartidas.
+
+**Frontend (Vitest + Testing Library sobre jsdom):** `apiClient` (token,
+errores de red y respuestas no parseables), `useApiData`, `AuthContext`
+(persistencia y rehidratación de sesión), guards de ruta (`ProtectedRoute`,
+`RoleRoute`), primitivos de UI (`Button`, `Modal` con focus-trap) y la lógica
+pura de `sku` y `slugify`.
+
+La cobertura se mide por archivo y se integra en SonarQube (ver más abajo). Las
+carpetas pendientes son las páginas grandes (`client/src/pages/**`), que siguen
+sin pruebas.
+
+---
+
+## Calidad de código (SonarQube)
+
+El proyecto se analiza con **SonarQube Community Edition** sobre Docker. La
+configuración vive en `sonar-project.properties` (raíz) y cubre `client/src` y
+`server/src` en un único proyecto (`verodata-retail`).
+
+### Requisitos
+
+- Docker Desktop en ejecución (4 GB de RAM asignados como mínimo).
+- El token de análisis, que se genera una sola vez con
+  `scripts/sonar-bootstrap.mjs`.
+
+> La imagen está fijada a `sonarqube:26.10.0.133078-community`. El tag
+> `lts-community` sigue apuntando a la 9.9.8 (2023), cuyo analizador de
+> TypeScript no entiende `moduleResolution: bundler` y rompe el análisis del
+> cliente. Para actualizar: cambiar la versión en `docker-compose.sonar.yml` y
+> ejecutar `down -v` + `up -d` + `sonar-bootstrap.mjs`.
+
+### Puesta en marcha
+
+```bash
+# 1. Levantar el servidor (la primera vez tarda 1-2 minutos en quedar listo)
+docker compose -f docker-compose.sonar.yml up -d
+
+# 2. Crear el proyecto, el Quality Gate y el token de análisis
+node scripts/sonar-bootstrap.mjs
+```
+
+`scripts/sonar-bootstrap.mjs` es idempotente: crea el proyecto
+`verodata-retail`, el Quality Gate `VeroData Way` (partiendo de las condiciones
+base de *Sonar way*), lo asigna al proyecto y **muestra el token una única vez**.
+Si ya existe un token con el mismo nombre hay que reutilizarlo o revocarlo desde
+`My Account > Security`. Con credenciales de administrador distintas de
+`admin/admin`:
+
+```bash
+SONAR_ADMIN_PASSWORD=miClave node scripts/sonar-bootstrap.mjs
+```
+
+### Ejecutar el análisis
+
+```powershell
+# Windows
+$env:SONAR_TOKEN = "squ_xxxxxxxx"
+powershell -File scripts/sonar.ps1
+```
+
+```bash
+# Linux / macOS / Git Bash
+export SONAR_TOKEN="squ_xxxxxxxx"
+bash scripts/sonar.sh
+```
+
+El script ejecuta las pruebas con cobertura y lanza el escáner
+(`sonarsource/sonar-scanner-cli`), de modo que no hace falta instalar Java ni
+el scanner localmente. Los resultados quedan en
+<http://localhost:9000/dashboard?id=verodata-retail>.
+
+Ambos paquetes generan su propio `coverage/lcov.info` y el paso final de
+`test:coverage` los normaliza con `scripts/normalize-lcov.mjs`: Vitest escribe
+las rutas con el separador nativo del sistema (`src\lib\x.ts` en Windows) y el
+escáner corre en Linux, así que sin normalizar la cobertura se descartaría en
+silencio (SonarQube avisa con `Could not resolve ...`). El script deja cada ruta
+en formato POSIX relativo a la raíz (`client/src/lib/x.ts`).
+
+### Quality Gate `VeroData Way`
+
+Asignado al proyecto y evaluado **sobre código nuevo**:
+
+| Condición | Umbral |
+|---|---|
+| Cobertura | ≥ 80 % |
+| Densidad de líneas duplicadas | ≤ 3 % |
+| Incidencias *blocker* / *critical* | 0 |
+| Security Hotspots revisados | 100 % |
+| Incidencias nuevas (cualquier severidad) | 0 |
+
+> Las condiciones de severidad y `new_violations` se heredan de *Sonar way*; si
+> resultan demasiado estrictas para el día a día, se relajan en
+> *Quality Gates > VeroData Way > Edit*.
+
+> La edición Community solo permite definir "código nuevo" como **revisión
+> anterior** (`previous_version`). Por eso los scripts derivan la versión del
+> proyecto desde `git describe --tags --always`: al etiquetar cada release
+> (`git tag v1.1.0`), el gate pasa a evaluar únicamente lo añadido desde el
+> tag anterior. Se puede forzar con `SONAR_PROJECT_VERSION`.
+
+### Examen continuo en el IDE
+
+Instalar la extensión **SonarQube for IDE** (VS Code) y conectarla en *Connected
+Mode* a `http://localhost:9000` con el mismo token: los mismos perfiles y el
+mismo gate se evalúan mientras se escribe.
+
+### Detener el servicio
+
+```bash
+docker compose -f docker-compose.sonar.yml down      # conserva los datos
+docker compose -f docker-compose.sonar.yml down -v   # borra datos y análisis
+```
 
 ---
 
