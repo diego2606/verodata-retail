@@ -88,6 +88,12 @@ export function MatrizVariantesModal({
   const [valores, setValores] = useState<Record<string, string>>({});
   const [filas, setFilas] = useState<FilaVariante[]>([]);
 
+  // Matriz asimétrica: excluir combinaciones concretas (ej. tallas por color).
+  const [restringir, setRestringir] = useState(false);
+  const [ejeA, setEjeA] = useState('COLOR');
+  const [ejeB, setEjeB] = useState('SIZE');
+  const [excluidos, setExcluidos] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     let active = true;
     apiClient
@@ -149,10 +155,26 @@ export function MatrizVariantesModal({
     [valores]
   );
 
-  const totalCombinaciones = useMemo(
-    () => grupoValores.reduce((acc, g) => acc * g.values.length, grupoValores.length ? 1 : 0),
-    [grupoValores]
-  );
+  const ejesDisponibles = grupoValores.map(g => g.key);
+  const ejeAef = ejesDisponibles.includes(ejeA) ? ejeA : (ejesDisponibles[0] ?? '');
+  const ejeBef =
+    ejesDisponibles.includes(ejeB) && ejeB !== ejeAef
+      ? ejeB
+      : (ejesDisponibles.find(k => k !== ejeAef) ?? '');
+  const restriccionActiva = restringir && ejeAef !== '' && ejeBef !== '';
+  const valoresDe = (eje: string): string[] => grupoValores.find(g => g.key === eje)?.values ?? [];
+  const opcionesEjes: SelectOption[] = grupoValores.map(g => ({
+    value: g.key,
+    label: ATRIBUTO_LABELS[g.key] ?? g.key,
+  }));
+
+  const totalCombinaciones = useMemo(() => {
+    if (grupoValores.length === 0) return 0;
+    const base = productoCartesiano(grupoValores);
+    return restriccionActiva
+      ? base.filter(c => !excluidos.has(`${c[ejeAef] ?? ''}::${c[ejeBef] ?? ''}`)).length
+      : base.length;
+  }, [grupoValores, restriccionActiva, excluidos, ejeAef, ejeBef]);
 
   const generar = useCallback((): void => {
     setServerError(null);
@@ -172,7 +194,10 @@ export function MatrizVariantesModal({
       }
     }
 
-    const combos = productoCartesiano(grupoValores);
+    const base = productoCartesiano(grupoValores);
+    const combos = restriccionActiva
+      ? base.filter(c => !excluidos.has(`${c[ejeAef] ?? ''}::${c[ejeBef] ?? ''}`))
+      : base;
     const usados = new Set<string>();
     const nuevas = combos.map(combo => {
       let sku = usaPlantilla
@@ -197,6 +222,10 @@ export function MatrizVariantesModal({
     usaPlantilla,
     requeridosSku,
     plantillaSku,
+    restriccionActiva,
+    excluidos,
+    ejeAef,
+    ejeBef,
   ]);
 
   const actualizarFila = useCallback(
@@ -475,6 +504,77 @@ export function MatrizVariantesModal({
             </div>
           </div>
         </fieldset>
+
+        {grupoValores.length >= 2 && (
+          <fieldset className="rounded-sm border border-hairline-cool bg-canvas-soft p-sm">
+            <legend className="px-xs text-xs font-medium text-ink">Matriz asimétrica (opcional)</legend>
+            <label className="flex items-center gap-sm text-xs text-ink">
+              <input
+                type="checkbox"
+                checked={restringir}
+                onChange={e => setRestringir(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              Restringir combinaciones (ej. tallas distintas por color)
+            </label>
+            {restringir && ejeAef !== '' && ejeBef !== '' && (
+              <>
+                <div className="mt-sm grid grid-cols-2 gap-md">
+                  <div>
+                    <label htmlFor="m-eje-a" className={labelClass}>Atributo (filas)</label>
+                    <Select id="m-eje-a" value={ejeAef} onChange={setEjeA} options={opcionesEjes} aria-label="Atributo A" />
+                  </div>
+                  <div>
+                    <label htmlFor="m-eje-b" className={labelClass}>Atributo (columnas)</label>
+                    <Select id="m-eje-b" value={ejeBef} onChange={setEjeB} options={opcionesEjes} aria-label="Atributo B" />
+                  </div>
+                </div>
+                <div className="mt-sm overflow-x-auto">
+                  <table className="border-collapse text-xs">
+                    <thead>
+                      <tr>
+                        <th className="px-2 py-1 text-left text-ink-mute">
+                          {ATRIBUTO_LABELS[ejeAef] ?? ejeAef} \ {ATRIBUTO_LABELS[ejeBef] ?? ejeBef}
+                        </th>
+                        {valoresDe(ejeBef).map(b => (
+                          <th key={b} className="px-2 py-1 text-center text-ink-mute">{b}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {valoresDe(ejeAef).map(a => (
+                        <tr key={a}>
+                          <td className="px-2 py-1 text-ink">{a}</td>
+                          {valoresDe(ejeBef).map(b => {
+                            const clave = `${a}::${b}`;
+                            const incluido = !excluidos.has(clave);
+                            return (
+                              <td key={b} className="px-2 py-1 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={incluido}
+                                  aria-label={`${a} ${b}`}
+                                  onChange={e =>
+                                    setExcluidos(prev => {
+                                      const next = new Set(prev);
+                                      if (e.target.checked) next.delete(clave);
+                                      else next.add(clave);
+                                      return next;
+                                    })
+                                  }
+                                />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </fieldset>
+        )}
 
         {filas.length > 0 && (
           <div className="overflow-hidden rounded-sm border border-hairline">
