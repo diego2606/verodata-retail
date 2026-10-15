@@ -55,13 +55,15 @@ export function StorefrontLayout(): React.ReactElement {
 
       {/* Nivel 2 — Main navigation */}
       <header className="sticky top-0 z-30 border-b border-store-line bg-store-surface">
-        <div className={`${CONTENEDOR} flex h-16 items-center gap-lg`}>
-          <Link to="/" className="text-xl font-bold tracking-tight text-store-ink" aria-label="VeroData Retail, ir al inicio">
-            VeroData
+        <div className="flex h-16 items-center gap-lg px-lg">
+          {/* Logo anclado al borde izquierdo de la ventana (fuera del contenedor) */}
+          <Link to="/" className="flex shrink-0 items-center" aria-label="VeroData Retail, ir al inicio">
+            <img src="/brand/logo-verodata.svg" alt="VeroData Retail" className="h-8 w-auto" />
           </Link>
 
-          <form onSubmit={buscar} role="search" className="hidden flex-1 md:block">
-            <div className="flex h-10 items-center overflow-hidden rounded-full border border-store-line bg-store-canvas focus-within:border-store-ink-mute">
+          <div className="flex flex-1 items-center gap-lg">
+          <form onSubmit={buscar} role="search" className="hidden flex-1 md:flex md:justify-center">
+            <div className="flex h-10 w-full max-w-[620px] items-center overflow-hidden rounded-full border border-store-line bg-store-canvas focus-within:border-store-ink-mute">
               <input
                 type="search"
                 value={busqueda}
@@ -105,6 +107,7 @@ export function StorefrontLayout(): React.ReactElement {
                 0
               </span>
             </Link>
+          </div>
           </div>
         </div>
 
