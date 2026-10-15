@@ -23,6 +23,9 @@ import { CategoriesPage } from './pages/admin/CategoriesPage';
 import { ProductsPage } from './pages/admin/ProductsPage';
 import { ProductoEditorPage } from './pages/admin/producto-editor/ProductoEditorPage';
 import { InventoryPage } from './pages/admin/InventoryPage';
+import { ReposicionesPage } from './pages/admin/reposiciones/ReposicionesPage';
+import { NuevaReposicionPage } from './pages/admin/reposiciones/NuevaReposicionPage';
+import { DetalleReposicionPage } from './pages/admin/reposiciones/DetalleReposicionPage';
 import { ColorsPage } from './pages/admin/ColorsPage';
 import { AttributesPage } from './pages/admin/AttributesPage';
 import { ContentPage } from './pages/admin/ContentPage';
@@ -72,6 +75,9 @@ function App(): React.ReactElement {
               <Route path="/admin/products" element={<ProductsPage />} />
               <Route path="/admin/products/new" element={<ProductoEditorPage modo="crear" />} />
               <Route path="/admin/products/:id/edit" element={<ProductoEditorPage modo="editar" />} />
+              <Route path="/admin/reposiciones" element={<ReposicionesPage />} />
+              <Route path="/admin/reposiciones/nueva" element={<NuevaReposicionPage />} />
+              <Route path="/admin/reposiciones/:id" element={<DetalleReposicionPage />} />
               <Route path="/admin/inventory" element={<InventoryPage />} />
               <Route path="/admin/colors" element={<ColorsPage />} />
               <Route path="/admin/attributes" element={<AttributesPage />} />
