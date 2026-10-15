@@ -21,7 +21,7 @@ export type ApiResponse<T = null> = ApiSuccess<T> | ApiFailure;
 export interface JwtPayload {
   id_usuario: string;
   email: string;
-  rol: 'SUPER_ADMIN' | 'ADMIN';
+  rol: RolUsuario;
   iat?: number;
   exp?: number;
 }

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { JwtPayload } from '../shared/types/api.types';
+import { JwtPayload, RolUsuario } from '../shared/types/api.types';
 
 declare global {
   namespace Express {
@@ -27,7 +27,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   }
 }
 
-export function authorize(...roles: Array<'SUPER_ADMIN' | 'ADMIN'>) {
+export function authorize(...roles: RolUsuario[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({ success: false, message: 'No autenticado', data: null });
