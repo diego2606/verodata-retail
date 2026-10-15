@@ -41,3 +41,7 @@ AGENTS.md
 .aider*
 CLAUDE.md
 .github/copilot-instructions.md
+
+# Documentos de diseño locales (prompts, planes) — no forman parte del entregable
+PROMPT_FIGMA_PORTADA.md
+PLAN_HU034_CONTENIDO_PORTADA.md
