@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  actualizarPasswordSchema,
   actualizarUsuarioSchema,
   buscarDocumentoQuerySchema,
   crearUsuarioSchema,
@@ -20,7 +21,6 @@ describe('crearUsuarioSchema (HU002)', () => {
   it('acepta datos válidos', () => {
     expect(crearUsuarioSchema.safeParse(base).success).toBe(true);
   });
-
   it('rechaza documento demasiado corto', () => {
     expect(crearUsuarioSchema.safeParse({ ...base, numero_documento: '123' }).success).toBe(false);
   });
@@ -73,5 +73,23 @@ describe('buscarDocumentoQuerySchema (HU004)', () => {
 
   it('acepta un documento válido', () => {
     expect(buscarDocumentoQuerySchema.safeParse({ documento: '12345678' }).success).toBe(true);
+  });
+});
+
+describe('actualizarPasswordSchema (backoffice)', () => {
+  it('acepta una contraseña que cumple la política', () => {
+    expect(actualizarPasswordSchema.safeParse({ password: 'Passw0rd' }).success).toBe(true);
+  });
+
+  it('rechaza menos de 8 caracteres', () => {
+    expect(actualizarPasswordSchema.safeParse({ password: 'Pass1' }).success).toBe(false);
+  });
+
+  it('rechaza contraseña sin mayúscula ni número', () => {
+    expect(actualizarPasswordSchema.safeParse({ password: 'password' }).success).toBe(false);
+  });
+
+  it('rechaza body vacío', () => {
+    expect(actualizarPasswordSchema.safeParse({}).success).toBe(false);
   });
 });

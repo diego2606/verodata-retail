@@ -26,4 +26,7 @@ router.patch('/:id', userController.actualizar);
 // PATCH /api/v1/users/:id/bloqueo — bloquear / desbloquear cuenta
 router.patch('/:id/bloqueo', userController.actualizarBloqueo);
 
+// PATCH /api/v1/users/:id/password — cambio de contraseña (no aplica a SUPER_ADMIN)
+router.patch('/:id/password', userController.cambiarPassword);
+
 export default router;

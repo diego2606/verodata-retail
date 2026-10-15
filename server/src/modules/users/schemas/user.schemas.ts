@@ -40,6 +40,16 @@ export const actualizarBloqueoSchema = z.object({
   bloqueado: z.boolean(),
 });
 
+/** Body de PATCH /api/v1/users/:id/password — misma política que el alta (HU002) */
+export const actualizarPasswordSchema = z.object({
+  password: z
+    .string()
+    .min(8, { message: 'La contraseña debe tener al menos 8 caracteres' })
+    .regex(/^(?=.*[A-Z])(?=.*[0-9])/, {
+      message: 'Debe contener al menos una mayúscula y un número',
+    }),
+});
+
 /** Query de GET /api/v1/users/search (HU004) */
 export const buscarDocumentoQuerySchema = z.object({
   documento: z
@@ -70,5 +80,6 @@ export const usuarioIdParamSchema = z.object({
 export type ListarUsuariosQuery = z.infer<typeof listarUsuariosQuerySchema>;
 export type CrearUsuarioInput = z.infer<typeof crearUsuarioSchema>;
 export type ActualizarBloqueoInput = z.infer<typeof actualizarBloqueoSchema>;
+export type ActualizarPasswordInput = z.infer<typeof actualizarPasswordSchema>;
 export type BuscarDocumentoQuery = z.infer<typeof buscarDocumentoQuerySchema>;
 export type ActualizarUsuarioInput = z.infer<typeof actualizarUsuarioSchema>;

@@ -7,6 +7,7 @@ import {
 } from '../repositories/user.repository';
 import {
   ActualizarBloqueoInput,
+  ActualizarPasswordInput,
   ActualizarUsuarioInput,
   BuscarDocumentoQuery,
   CrearUsuarioInput,
@@ -23,6 +24,15 @@ export interface UsuarioCreado {
 
 function fallo(code: string, message: string, details: unknown = null): ApiFailure {
   return { success: false, error: { code, message, details } };
+}
+
+/**
+ * La cuenta SUPER_ADMIN no se gestiona desde el backoffice: ni su contraseña ni
+ * su estado de bloqueo. Protege la cuenta raíz frente a una sesión comprometida
+ * o a un error humano que dejaría el sistema sin administrador.
+ */
+function esSuperAdmin(usuario: UsuarioListadoRow): boolean {
+  return usuario.rol === 'SUPER_ADMIN';
 }
 
 export const userService = {
@@ -143,13 +153,47 @@ export const userService = {
     return { success: true, message: 'Colaborador actualizado correctamente', data: actualizado };
   },
 
+  /**
+   * Cambio de contraseña de un colaborador desde el backoffice.
+   * No aplica a cuentas SUPER_ADMIN (usan `PATCH /api/v1/me/password`).
+   */
+  async cambiarPassword(
+    id: string,
+    input: ActualizarPasswordInput
+  ): Promise<ApiResponse<{ id: string }>> {
+    const actual = await userRepository.obtenerPorId(id);
+    if (!actual) {
+      return fallo('RESOURCE_NOT_FOUND', 'El colaborador con el ID especificado no existe');
+    }
+
+    if (esSuperAdmin(actual)) {
+      return fallo(
+        'SUPER_ADMIN_PROTECTED',
+        'La contraseña de un Super Administrador no se puede cambiar desde el backoffice'
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    await userRepository.actualizarPassword(id, passwordHash);
+
+    return { success: true, message: 'Contraseña actualizada correctamente', data: { id } };
+  },
+
   /** Bloqueo / desbloqueo de cuenta de colaborador. */
   async actualizarBloqueo(
     id: string,
     input: ActualizarBloqueoInput
   ): Promise<ApiResponse<{ id: string; bloqueado: boolean }>> {
-    if (!(await userRepository.existeUsuario(id))) {
+    const actual = await userRepository.obtenerPorId(id);
+    if (!actual) {
       return fallo('RESOURCE_NOT_FOUND', 'El colaborador con el ID especificado no existe');
+    }
+
+    if (esSuperAdmin(actual)) {
+      return fallo(
+        'SUPER_ADMIN_PROTECTED',
+        'La cuenta de un Super Administrador no se puede bloquear ni desbloquear'
+      );
     }
 
     await userRepository.actualizarBloqueo(id, input.bloqueado);

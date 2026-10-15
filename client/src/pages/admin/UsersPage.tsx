@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   AlertTriangle,
+  KeyRound,
   Lock,
   LockOpen,
   Pencil,
@@ -23,6 +24,7 @@ import { useAuth } from '../../context/AuthContext';
 import { apiClient, ApiClientError } from '../../lib/apiClient';
 import type {
   ActualizarUsuarioPayload,
+  CambiarPasswordUsuarioPayload,
   CrearUsuarioPayload,
   RolOption,
   RolUsuario,
@@ -59,6 +61,31 @@ const editarUsuarioSchema = z.object({
 });
 
 type EditarUsuarioFormValues = z.infer<typeof editarUsuarioSchema>;
+
+// ─── Schema del modal de cambio de contraseña (misma política que el alta) ────
+
+const cambiarPasswordSchema = z
+  .object({
+    password: z
+      .string()
+      .min(8, 'Mínimo 8 caracteres')
+      .regex(/^(?=.*[A-Z])(?=.*[0-9])/, 'Debe incluir una mayúscula y un número'),
+    confirmar: z.string(),
+  })
+  .refine(values => values.password === values.confirmar, {
+    message: 'Las contraseñas no coinciden',
+    path: ['confirmar'],
+  });
+
+type CambiarPasswordFormValues = z.infer<typeof cambiarPasswordSchema>;
+
+/**
+ * La cuenta SUPER_ADMIN está protegida: ni su contraseña ni su estado se
+ * gestionan desde el backoffice (el backend lo rechaza con 403).
+ */
+function estaProtegida(usuario: UsuarioListItem): boolean {
+  return usuario.rol === 'SUPER_ADMIN';
+}
 
 // ─── Helpers de presentación ──────────────────────────────────────────────────
 
@@ -657,6 +684,129 @@ function EditUserModal({ usuario, onClose, onUpdated }: EditUserModalProps): Rea
   );
 }
 
+// ─── Modal de cambio de contraseña ────────────────────────────────────────────
+
+interface CambiarPasswordModalProps {
+  usuario: UsuarioListItem;
+  onClose: () => void;
+  onUpdated: (message: string) => void;
+}
+
+function CambiarPasswordModal({
+  usuario,
+  onClose,
+  onUpdated,
+}: CambiarPasswordModalProps): React.ReactElement {
+  const [serverError, setServerError] = useState<string | null>(null);
+  const nombre = [usuario.nombres, usuario.apellidos].filter(Boolean).join(' ') || usuario.email;
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<CambiarPasswordFormValues>({
+    resolver: zodResolver(cambiarPasswordSchema),
+    defaultValues: { password: '', confirmar: '' },
+  });
+
+  const onSubmit = async (values: CambiarPasswordFormValues): Promise<void> => {
+    setServerError(null);
+
+    const payload: CambiarPasswordUsuarioPayload = { password: values.password };
+
+    try {
+      const json = await apiClient.patch<{ id: string }>(
+        `/api/v1/users/${usuario.id}/password`,
+        payload
+      );
+      if (!json.success) {
+        setServerError(json.error.message);
+        return;
+      }
+      onUpdated(`Contraseña de ${usuario.email} actualizada`);
+    } catch (error) {
+      setServerError(
+        error instanceof ApiClientError ? error.message : 'Error de conexión. Intenta nuevamente.'
+      );
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} labelledBy="cambiar-password-titulo" panelClassName="max-w-lg">
+      <div className="mb-lg flex items-center justify-between">
+        <div className="flex items-center gap-sm">
+          <KeyRound size={16} className="text-primary-ink" aria-hidden="true" />
+          <h2 id="cambiar-password-titulo" className="text-sm font-medium text-ink">
+            Cambiar contraseña
+          </h2>
+        </div>
+        <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
+          <X size={15} aria-hidden="true" />
+        </Button>
+      </div>
+
+      {serverError && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="mb-md flex items-start gap-xs rounded-xs border border-retail-red/20 bg-retail-red/5 p-sm"
+        >
+          <AlertTriangle size={13} className="mt-px shrink-0 text-retail-red" aria-hidden="true" />
+          <p className="text-xs text-ink-secondary">{serverError}</p>
+        </div>
+      )}
+
+      <p className="mb-md rounded-xs border border-hairline-cool bg-canvas-soft px-sm py-xs text-xs text-ink-mute">
+        Se cambiará la contraseña de <span className="font-mono text-ink">{nombre}</span>. Comunícasela
+        por un canal seguro: no se envía por correo.
+      </p>
+
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-md">
+        <div>
+          <label htmlFor="pwd-nueva" className={labelClass}>
+            Nueva contraseña
+          </label>
+          <Input
+            id="pwd-nueva"
+            type="password"
+            autoComplete="new-password"
+            invalid={!!errors.password}
+            placeholder="••••••••"
+            {...register('password')}
+          />
+          <FieldError message={errors.password?.message} />
+        </div>
+
+        <div>
+          <label htmlFor="pwd-confirmar" className={labelClass}>
+            Confirmar contraseña
+          </label>
+          <Input
+            id="pwd-confirmar"
+            type="password"
+            autoComplete="new-password"
+            invalid={!!errors.confirmar}
+            placeholder="••••••••"
+            {...register('confirmar')}
+          />
+          <FieldError message={errors.confirmar?.message} />
+        </div>
+
+        <p className="text-xs text-ink-mute">Mínimo 8 caracteres, una mayúscula y un número.</p>
+
+        <div className="flex items-center justify-end gap-sm pt-md">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" isLoading={isSubmitting}>
+            {isSubmitting ? 'Guardando…' : 'Cambiar contraseña'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 // ─── Diálogo de confirmación de bloqueo ───────────────────────────────────────
 
 interface ConfirmBloqueoProps {
@@ -731,6 +881,7 @@ export function UsersPage(): React.ReactElement {
 
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<UsuarioListItem | null>(null);
+  const [passwordTarget, setPasswordTarget] = useState<UsuarioListItem | null>(null);
   const [pending, setPending] = useState<{ usuario: UsuarioListItem; next: boolean } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -804,6 +955,11 @@ export function UsersPage(): React.ReactElement {
     },
     [reload]
   );
+
+  const handlePasswordUpdated = useCallback((message: string): void => {
+    setPasswordTarget(null);
+    setToast({ type: 'success', message });
+  }, []);
 
   const confirmBloqueo = useCallback(async (): Promise<void> => {
     if (!pending) return;
@@ -907,6 +1063,13 @@ export function UsersPage(): React.ReactElement {
               <tbody className="divide-y divide-hairline-cool">
                 {usuarios.map(u => {
                   const esUnoMismo = sesion?.id === u.id;
+                  const protegida = estaProtegida(u);
+                  const bloqueoDeshabilitado = esUnoMismo || protegida;
+                  const motivoBloqueo = protegida
+                    ? 'La cuenta de un Super Administrador no se puede bloquear'
+                    : esUnoMismo
+                      ? 'No puedes bloquear tu propia cuenta'
+                      : undefined;
                   return (
                     <tr key={u.id} className="transition-colors duration-150 hover:bg-canvas-soft">
                       <td className="px-3 py-2.5 font-mono text-xs tabular-nums text-ink">
@@ -946,8 +1109,23 @@ export function UsersPage(): React.ReactElement {
                             type="button"
                             variant="secondary"
                             size="sm"
-                            disabled={esUnoMismo}
-                            title={esUnoMismo ? 'No puedes bloquear tu propia cuenta' : undefined}
+                            disabled={protegida}
+                            title={
+                              protegida
+                                ? 'La contraseña de un Super Administrador se cambia desde su propia cuenta'
+                                : undefined
+                            }
+                            onClick={() => setPasswordTarget(u)}
+                          >
+                            <KeyRound size={12} aria-hidden="true" />
+                            Contraseña
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={bloqueoDeshabilitado}
+                            title={motivoBloqueo}
                             onClick={() => setPending({ usuario: u, next: !u.bloqueado })}
                             className={cn(
                               u.bloqueado && 'border-primary/20 text-primary-ink hover:bg-primary/10'
@@ -989,6 +1167,13 @@ export function UsersPage(): React.ReactElement {
           usuario={editing}
           onClose={() => setEditing(null)}
           onUpdated={handleUpdated}
+        />
+      )}
+      {passwordTarget && (
+        <CambiarPasswordModal
+          usuario={passwordTarget}
+          onClose={() => setPasswordTarget(null)}
+          onUpdated={handlePasswordUpdated}
         />
       )}
       {pending && (

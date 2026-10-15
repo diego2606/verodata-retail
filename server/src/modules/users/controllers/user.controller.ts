@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import {
   actualizarBloqueoSchema,
+  actualizarPasswordSchema,
   actualizarUsuarioSchema,
   buscarDocumentoQuerySchema,
   crearUsuarioSchema,
@@ -161,13 +162,42 @@ export const userController = {
       const result = await userService.actualizarBloqueo(params.data.id, parsed.data);
 
       if (!result.success) {
-        res.status(404).json(result);
+        res.status(result.error.code === 'SUPER_ADMIN_PROTECTED' ? 403 : 404).json(result);
         return;
       }
 
       res.status(200).json(result);
     } catch (error) {
       console.error('[UserController] actualizarBloqueo error:', error);
+      res.status(500).json(internalError());
+    }
+  },
+
+  /** PATCH /api/v1/users/:id/password — cambio de contraseña desde el backoffice. */
+  async cambiarPassword(req: Request, res: Response): Promise<void> {
+    try {
+      const params = usuarioIdParamSchema.safeParse(req.params);
+      if (!params.success) {
+        res.status(400).json(validationError(params.error.flatten().fieldErrors));
+        return;
+      }
+
+      const parsed = actualizarPasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(validationError(parsed.error.flatten().fieldErrors));
+        return;
+      }
+
+      const result = await userService.cambiarPassword(params.data.id, parsed.data);
+
+      if (!result.success) {
+        res.status(result.error.code === 'SUPER_ADMIN_PROTECTED' ? 403 : 404).json(result);
+        return;
+      }
+
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('[UserController] cambiarPassword error:', error);
       res.status(500).json(internalError());
     }
   },

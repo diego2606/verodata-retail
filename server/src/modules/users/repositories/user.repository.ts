@@ -272,14 +272,6 @@ export const userRepository = {
     }
   },
 
-  async existeUsuario(id: string): Promise<boolean> {
-    const result = await pool.query<{ count: string }>(
-      `SELECT COUNT(*) AS count FROM usuarios WHERE id = $1`,
-      [id]
-    );
-    return Number(result.rows[0].count) > 0;
-  },
-
   /**
    * Bloqueo / desbloqueo de cuenta (HU001 / HU015).
    * Al desbloquear se resetean los intentos fallidos acumulados.
@@ -292,6 +284,23 @@ export const userRepository = {
            actualizado_en = NOW()
        WHERE id = $1`,
       [id, bloqueado]
+    );
+  },
+
+  /**
+   * Establece una contraseña nueva (ya hasheada) y limpia los intentos fallidos,
+   * con el mismo criterio que el restablecimiento de contraseña del cliente.
+   * NO toca `bloqueado`: levantar una suspensión es una acción aparte y deliberada.
+   * Nunca devuelve ni registra el hash.
+   */
+  async actualizarPassword(id: string, passwordHash: string): Promise<void> {
+    await pool.query(
+      `UPDATE usuarios
+       SET password_hash = $2,
+           intentos_fallidos = 0,
+           actualizado_en = NOW()
+       WHERE id = $1`,
+      [id, passwordHash]
     );
   },
 };

@@ -44,3 +44,8 @@ export interface ActualizarUsuarioPayload {
   email?: string;
   telefono?: string;
 }
+
+/** Contrato de PATCH /api/v1/users/:id/password — no aplica a SUPER_ADMIN */
+export interface CambiarPasswordUsuarioPayload {
+  password: string;
+}
