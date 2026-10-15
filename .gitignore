@@ -29,6 +29,11 @@ Thumbs.db
 # Vite
 .vite/
 
+# ─── Analisis de calidad (SonarQube) ────────────────────────────────────────
+.scannerwork/
+coverage/
+client/coverage/
+
 # ─── Asistencia de IA / scaffolding (no forma parte del entregable) ───────────
 .ai/
 skills/
