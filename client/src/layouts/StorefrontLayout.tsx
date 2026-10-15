@@ -55,59 +55,61 @@ export function StorefrontLayout(): React.ReactElement {
 
       {/* Nivel 2 — Main navigation */}
       <header className="sticky top-0 z-30 border-b border-store-line bg-store-surface">
-        <div className="flex h-16 items-center gap-lg px-lg">
-          {/* Logo anclado al borde izquierdo de la ventana (fuera del contenedor) */}
+        <div className="flex h-16 w-full items-center gap-lg px-lg md:px-10 lg:h-[88px] lg:gap-[58px] lg:px-16">
+          {/* Marca */}
           <Link to="/" className="flex shrink-0 items-center" aria-label="VeroData Retail, ir al inicio">
-            <img src="/brand/logo-verodata.svg" alt="VeroData Retail" className="h-8 w-auto" />
+            <img src="/brand/logo-verodata.svg" alt="VeroData Retail" className="h-9 w-auto lg:h-10" />
           </Link>
 
-          <div className="flex flex-1 items-center gap-lg">
-          <form onSubmit={buscar} role="search" className="hidden flex-1 md:flex md:justify-center">
-            <div className="flex h-10 w-full max-w-[620px] items-center overflow-hidden rounded-full border border-store-line bg-store-canvas focus-within:border-store-ink-mute">
+          {/* Buscador (ocupa el ancho disponible) */}
+          <form onSubmit={buscar} role="search" className="hidden flex-1 md:block">
+            <div className="flex h-12 items-center gap-md rounded-full border border-store-line bg-store-canvas pl-5 pr-1 transition-colors focus-within:border-store-ink-mute">
               <input
                 type="search"
                 value={busqueda}
                 onChange={(event) => setBusqueda(event.target.value)}
-                placeholder="Buscar zapatillas, polos, mochilas…"
+                placeholder="Buscar en verodata.com"
                 aria-label="Buscar productos"
-                className="h-full flex-1 bg-transparent px-lg text-sm text-store-ink outline-none placeholder:text-store-ink-mute"
+                className="h-full flex-1 bg-transparent text-sm text-store-ink outline-none placeholder:text-store-ink-soft"
               />
               <button
                 type="submit"
                 aria-label="Buscar"
-                className="mr-xxs flex h-8 w-8 items-center justify-center rounded-full bg-store-ink text-white"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-store-ink text-white transition-colors hover:bg-store-ink/90"
               >
-                <Search size={16} aria-hidden="true" />
+                <Search size={20} aria-hidden="true" />
               </button>
             </div>
           </form>
 
-          <div className="ml-auto flex items-center gap-lg">
+          {/* Cuenta y bolsa */}
+          <div className="ml-auto flex items-center gap-7">
             {isAuthenticated && usuario ? (
-              <Link
-                to="/cuenta/perfil"
-                className="hidden items-center gap-sm text-sm text-store-ink-soft hover:text-store-ink lg:flex"
-              >
-                <User size={18} aria-hidden="true" />
-                Hola, {usuario.nombre ?? usuario.email}
+              <Link to="/cuenta/perfil" className="flex items-center gap-sm" aria-label="Mi cuenta">
+                <User size={24} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-store-ink" />
+                <span className="flex flex-col text-left">
+                  <span className="text-xs leading-tight text-store-ink-soft">
+                    Hola, {usuario.nombre ?? usuario.email}
+                  </span>
+                  <span className="text-sm font-semibold leading-tight text-store-ink">Mi cuenta</span>
+                </span>
               </Link>
             ) : (
-              <button
-                type="button"
-                onClick={abrirLogin}
-                className="hidden items-center gap-sm text-sm text-store-ink-soft hover:text-store-ink lg:flex"
-              >
-                <User size={18} aria-hidden="true" />
-                Hola, invitado
+              <button type="button" onClick={abrirLogin} className="flex items-center gap-sm" aria-label="Acceso">
+                <User size={24} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-store-ink" />
+                <span className="hidden flex-col text-left sm:flex">
+                  <span className="text-xs leading-tight text-store-ink-soft">Invitado</span>
+                  <span className="text-sm font-semibold leading-tight text-store-ink">Acceso</span>
+                </span>
               </button>
             )}
+
             <Link to="/catalogo" className="relative flex items-center" aria-label="Bolsa de compras">
-              <ShoppingBag size={22} aria-hidden="true" />
-              <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-store-accent px-xs text-xs font-semibold text-white">
+              <ShoppingBag size={25} strokeWidth={1.5} aria-hidden="true" className="text-store-ink" />
+              <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-store-accent px-xs font-mono text-[10px] font-bold leading-none text-white">
                 0
               </span>
             </Link>
-          </div>
           </div>
         </div>
 
