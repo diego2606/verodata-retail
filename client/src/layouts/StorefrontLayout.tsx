@@ -5,8 +5,9 @@ import { ColoresProvider } from '../context/ColoresContext';
 import { useAuth } from '../context/AuthContext';
 import { useLoginModal } from '../context/LoginModalContext';
 import { PerfilIncompletoBanner } from '../components/storefront/PerfilIncompletoBanner';
+import { CONTENEDOR_TIENDA } from '../lib/utils';
 
-const CONTENEDOR = 'mx-auto w-full max-w-[1200px] px-lg';
+const CONTENEDOR = CONTENEDOR_TIENDA;
 
 /**
  * Layout del Storefront público (modo `Persuade`).

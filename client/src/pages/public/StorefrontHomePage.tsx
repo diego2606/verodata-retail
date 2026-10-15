@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ChevronLeft, ChevronRight, CreditCard, RefreshCcw, Truck, Wallet, type LucideIcon } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, CONTENEDOR_TIENDA } from '../../lib/utils';
 import { useApiData } from '../../lib/useApiData';
 import { aplanarCategorias } from '../../lib/storefront';
 import { ProductCard } from '../../components/storefront/ProductCard';
@@ -10,7 +10,7 @@ import { EstadoError, GrillaSkeleton } from '../../components/storefront/Estados
 import type { BannerPublico, HomeData, ProductoPublico } from '../../types/storefront.types';
 import type { FranjaConfianza } from '../../types/banner.types';
 
-const CONTENEDOR = 'mx-auto w-full max-w-[1200px] px-lg';
+const CONTENEDOR = CONTENEDOR_TIENDA;
 
 const FRANJA_DEFECTO: FranjaConfianza[] = [
   { titulo: 'Envíos a todo el Perú', texto: 'Despacho en 24–48 horas.' },
@@ -88,7 +88,7 @@ export function StorefrontHomePage(): React.ReactElement {
 function Ticker({ banner }: { banner: BannerPublico }): React.ReactElement {
   return (
     <section className="overflow-hidden rounded-sm bg-store-ink text-white">
-      <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-between gap-sm px-lg py-sm">
+      <div className={`${CONTENEDOR} flex flex-wrap items-center justify-between gap-sm py-sm`}>
         <p className="text-sm">
           <span className="font-semibold">{banner.titulo}</span>
           {banner.subtitulo ? <span className="text-white/80"> · {banner.subtitulo}</span> : null}

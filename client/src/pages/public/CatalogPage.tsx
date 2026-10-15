@@ -4,12 +4,12 @@ import { useApiData } from '../../lib/useApiData';
 import { aplanarCategorias, construirQueryCatalogo } from '../../lib/storefront';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { cn } from '../../lib/utils';
+import { cn, CONTENEDOR_TIENDA } from '../../lib/utils';
 import { ProductCard } from '../../components/storefront/ProductCard';
 import { EstadoError, EstadoVacio, GrillaSkeleton } from '../../components/storefront/Estados';
 import type { CatalogoPaginado, CategoriaPublicaNodo, FiltrosCatalogo } from '../../types/storefront.types';
 
-const CONTENEDOR = 'mx-auto w-full max-w-[1200px] px-lg';
+const CONTENEDOR = CONTENEDOR_TIENDA;
 
 export function CatalogPage(): React.ReactElement {
   const [params, setParams] = useSearchParams();

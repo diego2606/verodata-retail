@@ -2,13 +2,14 @@ import React from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ImageOff, RefreshCcw, ShieldCheck, Truck } from 'lucide-react';
 import { useApiData } from '../../lib/useApiData';
+import { CONTENEDOR_TIENDA } from '../../lib/utils';
 import { formatearPrecio } from '../../lib/storefront';
 import { useColores } from '../../context/ColoresContext';
 import { Button } from '../../components/ui/Button';
 import { EstadoError } from '../../components/storefront/Estados';
 import type { DetalleProducto, ProductoPublico } from '../../types/storefront.types';
 
-const CONTENEDOR = 'mx-auto w-full max-w-[1200px] px-lg';
+const CONTENEDOR = CONTENEDOR_TIENDA;
 
 const ETIQUETAS_ATRIBUTO: Record<string, string> = {
   COLOR: 'Color',

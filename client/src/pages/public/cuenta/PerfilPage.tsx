@@ -15,7 +15,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { cn } from '../../../lib/utils';
+import { cn, CONTENEDOR_TIENDA } from '../../../lib/utils';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
@@ -641,7 +641,7 @@ export function PerfilPage(): React.ReactElement {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1040px] px-lg py-xl">
+    <div className={`${CONTENEDOR_TIENDA} py-xl`}>
       <Link
         to="/catalogo"
         className="inline-flex items-center gap-xs text-sm text-store-ink-soft hover:text-store-ink"
