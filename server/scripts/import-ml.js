@@ -7,6 +7,9 @@
  *   - Nivel 1 = subcategorías reales de ML (recortadas).
  *   - Los productos van a la hoja; las variantes (color/talla) se agrupan por `modelo`.
  *
+ * La API `/products/search` EXIGE `q` (keywords) → se usa el nombre de la
+ * subcategoría como keyword, junto con el filtro `category`.
+ *
  * Reglas:
  *   - SOLO se importan productos CON imagen (filtro duro).
  *   - Idempotente: no reimporta SKU ni combinación modelo+atributos existente.
@@ -29,7 +32,6 @@ const MAX_HIJOS = 10; // subcategorías por departamento
 
 /** Departamento = regla de mapeo desde una categoría top de ML. */
 const FUENTES = [
-  // Ropa y Accesorios → se reparte por GÉNERO (Hombre/Mujer/Niños)
   { top: 'MPE1430', tipo: 'moda' },
   { top: 'MPE1051', dep: 'Tecnología', seccion: 'Celulares y Smartphones' },
   { top: 'MPE1648', dep: 'Tecnología', seccion: 'Computación' },
@@ -47,12 +49,14 @@ const RANGOS_PRECIO = {
   Mujer: [39, 399],
   Hombre: [39, 499],
   'Niños y Bebés': [29, 299],
+  Moda: [39, 399],
+  Calzado: [59, 399],
+  Accesorios: [29, 399],
   Tecnología: [199, 6999],
   Hogar: [99, 3999],
   'Deportes y Fitness': [49, 999],
   'Belleza y Cuidado Personal': [29, 799],
   'Juegos y Juguetes': [29, 499],
-  Accesorios: [29, 399],
 };
 
 const ATRIBUTOS_VARIANTE = ['COLOR', 'SIZE', 'CAPACITY', 'STORAGE_CAPACITY', 'MODEL', 'GENDER', 'LINE'];
@@ -70,6 +74,7 @@ const pool = new Pool({
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const cache = new Map();
+const rutas = new Map();
 const variantesVistas = new Set();
 
 function hash(text) {
@@ -94,22 +99,27 @@ const limpiarNombre = (n) => (n || 'Producto').replace(/\s+/g, ' ').trim().slice
 
 /** Nombre de sección sin el género repetido: "Ropa de Hombre" → "Ropa". */
 function limpiarSeccion(nombre) {
-  const limpio = nombre.replace(/\s+de\s+(hombre|mujer|ni[nñ]os?|beb[eé]s?)\s*$/i, '').trim();
-  return (limpio || nombre).slice(0, 100);
+  const limpio = (nombre || '').replace(/\s+de\s+(hombre|mujer|ni[nñ]os?|beb[eé]s?)\s*$/i, '').trim();
+  return (limpio || nombre || 'General').slice(0, 100);
 }
 
-function destinoModa(nombreHijo) {
+/** Departamento de moda: por atributo GENDER; si no, por palabra del nombre del hijo. */
+function departamentoModa(nombreHijo, atributos) {
+  const g = sinAcentos(atributos.GENDER || '');
   const n = sinAcentos(nombreHijo);
-  if (n.includes('hombre')) return 'Hombre';
-  if (n.includes('mujer')) return 'Mujer';
-  if (n.includes('nin') || n.includes('bebe')) return 'Niños y Bebés';
-  return 'Accesorios';
+  const texto = `${g} ${n}`;
+  if (texto.includes('hombre') || texto.includes('masculino')) return 'Hombre';
+  if (texto.includes('mujer') || texto.includes('femenin')) return 'Mujer';
+  if (texto.includes('nin') || texto.includes('bebe')) return 'Niños y Bebés';
+  if (n.includes('calzado') || n.includes('zapat') || n.includes('sandalia')) return 'Calzado';
+  if (n.includes('accesorio') || n.includes('bolso') || n.includes('cartera') || n.includes('equipaje') || n.includes('mochila') || n.includes('lente') || n.includes('reloj')) return 'Accesorios';
+  return 'Moda';
 }
 
-/** Resuelve el destino (departamento › sección) para un hijo de ML. */
-function resolverDestino(fuente, nombreHijo) {
+/** Resuelve (departamento, sección) para una subcategoría de ML y un producto. */
+function destinoDe(fuente, nombreHijo, atributos) {
   if (fuente.tipo === 'moda') {
-    return { departamento: destinoModa(nombreHijo), seccion: limpiarSeccion(nombreHijo) };
+    return { departamento: departamentoModa(nombreHijo, atributos), seccion: limpiarSeccion(nombreHijo) };
   }
   if (fuente.porHijo) {
     return { departamento: fuente.dep, seccion: limpiarSeccion(nombreHijo) };
@@ -161,10 +171,7 @@ async function mlGet(pathname, intentos = 5) {
   throw new Error(`ML ${pathname} -> 429`);
 }
 
-/**
- * Crea (si no existe) una categoría con un slug único por ruta.
- * `slugPadre` evita colisiones entre "Ropa" de varios departamentos.
- */
+/** Crea (si no existe) una categoría con un slug único por ruta. */
 async function ensureCategoria(nombre, padreId, slugPadre) {
   const slug = slugPadre ? `${slugPadre}-${slugify(nombre)}` : slugify(nombre);
   const key = `c:${padreId ?? 'T'}:${slug}`;
@@ -181,6 +188,16 @@ async function ensureCategoria(nombre, padreId, slugPadre) {
   return id;
 }
 
+/** Garantiza la ruta departamento › sección y devuelve el id de la sección. */
+async function ensureRuta(departamento, seccion) {
+  const key = `${departamento}|${seccion}`;
+  if (rutas.has(key)) return rutas.get(key);
+  const depId = await ensureCategoria(departamento, null, null);
+  const secId = await ensureCategoria(seccion, depId, slugify(departamento));
+  rutas.set(key, secId);
+  return secId;
+}
+
 async function subirImagen(buffer, contentType, nombreArchivo) {
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${nombreArchivo}`, {
     method: 'POST',
@@ -191,23 +208,17 @@ async function subirImagen(buffer, contentType, nombreArchivo) {
   return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${nombreArchivo}`;
 }
 
-/** Importa los productos de una subcategoría de ML dentro de (departamento › sección). */
-async function importarCategoria(departamento, seccion, mlCatId) {
-  const search = await mlGet(
-    `/products/search?site_id=MPE&category=${mlCatId}&limit=20`
-  );
-  const conImagen = (search.results || []).filter((r) => (r.pictures || []).length > 0);
-  if (conImagen.length === 0) return 0;
+/** Importa los productos de una subcategoría de ML. */
+async function importarCategoria(fuente, nombreHijo, mlCatId) {
+  const q = encodeURIComponent(nombreHijo);
+  const search = await mlGet(`/products/search?site_id=MPE&category=${mlCatId}&q=${q}&limit=30`);
+  const resultados = search.results || [];
+  if (resultados.length === 0) return 0;
 
-  let depId = null;
-  let depSlug = null;
-  let secId = null;
   let importados = 0;
-  let considerados = 0;
 
-  for (const r of conImagen) {
-    if (considerados >= POR_SUB) break;
-    considerados++;
+  for (const r of resultados) {
+    if (importados >= POR_SUB) break;
 
     try {
       const detalle = await mlGet(`/products/${r.id}`);
@@ -225,8 +236,8 @@ async function importarCategoria(departamento, seccion, mlCatId) {
       );
       if (yaExiste.rows[0]) continue;
 
-      const pic = (detalle.pictures && detalle.pictures[0]) || r.pictures[0];
-      const imageUrl = pic.secure_url || pic.url;
+      const pic = (detalle.pictures && detalle.pictures[0]) || (Array.isArray(r.pictures) ? r.pictures[0] : null);
+      const imageUrl = pic && (pic.secure_url || pic.url);
       if (!imageUrl) continue;
 
       const imgRes = await fetch(imageUrl);
@@ -236,12 +247,8 @@ async function importarCategoria(departamento, seccion, mlCatId) {
       const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
       const publicUrl = await subirImagen(buffer, contentType, `${sku}.${ext}`);
 
-      // Crear la estructura (solo cuando hay al menos un producto válido)
-      if (depId === null) {
-        depId = await ensureCategoria(departamento, null, null);
-        depSlug = slugify(departamento);
-      }
-      if (secId === null) secId = await ensureCategoria(seccion, depId, depSlug);
+      const { departamento, seccion } = destinoDe(fuente, nombreHijo, atributos);
+      const secId = await ensureRuta(departamento, seccion);
 
       const precioReal = detalle.buy_box_winner && detalle.buy_box_winner.price;
       const precio = precioReal || precioEstimado(departamento, sku);
@@ -303,10 +310,9 @@ async function main() {
     }
     const hijos = (det.children_categories || []).slice(0, MAX_HIJOS);
     for (const hijo of hijos) {
-      const { departamento, seccion } = resolverDestino(fuente, hijo.name);
-      console.log(`• ${departamento} › ${seccion}  (ML ${hijo.id})`);
+      console.log(`• ${hijo.name}  (ML ${hijo.id})`);
       try {
-        total += await importarCategoria(departamento, seccion, hijo.id);
+        total += await importarCategoria(fuente, hijo.name, hijo.id);
       } catch (err) {
         console.warn(`  ! "${hijo.name}" omitida: ${err.message}`);
       }
