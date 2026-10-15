@@ -66,7 +66,7 @@ export const actualizarVarianteSchema = z
     codigo_barras: z.string().trim().min(6).max(50).nullable().optional(),
     activo: z.boolean().optional(),
   })
-  .refine((d) => Object.values(d).some((v) => v !== undefined), {
+  .refine((d) => Object.entries(d).some(([clave, v]) => clave !== 'sku_id' && v !== undefined), {
     message: 'Debe enviar al menos un campo para actualizar',
   });
 
