@@ -10,13 +10,16 @@ export interface DireccionRow {
   direccion_linea: string;
   referencia: string | null;
   codigo_postal: string | null;
+  /** Geolocalización opcional (migración 012). NULL si el usuario no usó el mapa. */
+  latitud: number | null;
+  longitud: number | null;
   es_principal: boolean;
   creado_en: Date;
   actualizado_en: Date;
 }
 
 const COLUMNAS = `id, usuario_id, departamento, provincia, distrito, direccion_linea,
-  referencia, codigo_postal, es_principal, creado_en, actualizado_en`;
+  referencia, codigo_postal, latitud, longitud, es_principal, creado_en, actualizado_en`;
 
 /** HU017: libreta de direcciones desacoplada en 3FN. */
 export const direccionRepository = {
@@ -57,8 +60,8 @@ export const direccionRepository = {
 
       const result = await client.query<DireccionRow>(
         `INSERT INTO direcciones
-           (usuario_id, departamento, provincia, distrito, direccion_linea, referencia, codigo_postal, es_principal)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           (usuario_id, departamento, provincia, distrito, direccion_linea, referencia, codigo_postal, latitud, longitud, es_principal)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING ${COLUMNAS}`,
         [
           usuarioId,
@@ -68,6 +71,8 @@ export const direccionRepository = {
           data.direccion_linea,
           data.referencia ?? null,
           data.codigo_postal ?? null,
+          data.latitud ?? null,
+          data.longitud ?? null,
           esPrincipal,
         ]
       );
@@ -110,6 +115,8 @@ export const direccionRepository = {
       if (data.direccion_linea !== undefined) add('direccion_linea', data.direccion_linea);
       if (data.referencia !== undefined) add('referencia', data.referencia);
       if (data.codigo_postal !== undefined) add('codigo_postal', data.codigo_postal);
+      if (data.latitud !== undefined) add('latitud', data.latitud);
+      if (data.longitud !== undefined) add('longitud', data.longitud);
       if (data.es_principal !== undefined) add('es_principal', data.es_principal);
 
       if (sets.length === 0) {

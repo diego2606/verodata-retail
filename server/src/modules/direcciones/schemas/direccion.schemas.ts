@@ -11,6 +11,23 @@ const direccionBase = {
   codigo_postal: z
     .preprocess((v) => (v === '' || v === undefined ? null : v), z.string().trim().max(20).nullable())
     .optional(),
+  // Geolocalización opcional (migración 012). Se envía solo si el usuario usó el mapa.
+  latitud: z
+    .preprocess(
+      (v) => (v === '' || v === undefined ? null : v),
+      z.number().min(-90, { message: 'Latitud fuera de rango' }).max(90, { message: 'Latitud fuera de rango' }).nullable()
+    )
+    .optional(),
+  longitud: z
+    .preprocess(
+      (v) => (v === '' || v === undefined ? null : v),
+      z
+        .number()
+        .min(-180, { message: 'Longitud fuera de rango' })
+        .max(180, { message: 'Longitud fuera de rango' })
+        .nullable()
+    )
+    .optional(),
   es_principal: z.boolean().optional(),
 };
 

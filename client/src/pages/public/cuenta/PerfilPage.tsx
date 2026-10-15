@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   ChevronLeft,
@@ -24,12 +24,40 @@ import { useAuth } from '../../../context/AuthContext';
 import { useApiData } from '../../../lib/useApiData';
 import { cuentaApi } from '../../../lib/cuenta';
 import { ApiClientError } from '../../../lib/apiClient';
+import {
+  formatearCoordenadas,
+  type Coordenadas,
+  type UbicacionSeleccionada,
+} from '../../../lib/mapaUbicacion';
 import type {
   DireccionItem,
   DireccionPayload,
   PerfilCliente,
   TipoDocumento,
 } from '../../../types/cuenta.types';
+
+/**
+ * El selector de mapa se carga de forma diferida: ni el bundle de
+ * `@vis.gl/react-google-maps` ni el script de Google viajan al navegador
+ * hasta que el usuario pulsa "Seleccionar ubicación en el mapa".
+ */
+const MapaUbicacionPicker = React.lazy(
+  () => import('../../../components/storefront/MapaUbicacionPicker')
+);
+
+/** Skeleton que calca la silueta del mapa mientras se descarga el chunk. */
+function SkeletonMapa(): React.ReactElement {
+  return (
+    <div className="space-y-sm" aria-hidden="true">
+      <div className="h-72 w-full animate-pulse rounded-md bg-store-line/40 sm:h-96" />
+      <div className="h-3 w-64 animate-pulse rounded-full bg-store-line/40" />
+      <div className="flex justify-end gap-sm">
+        <div className="h-7 w-20 animate-pulse rounded-md bg-store-line/40" />
+        <div className="h-7 w-36 animate-pulse rounded-md bg-store-line/40" />
+      </div>
+    </div>
+  );
+}
 
 const SELECT_STORE =
   'h-9 w-full rounded-md border border-store-line bg-store-surface px-sm text-sm text-store-ink focus:outline-none focus:ring-1 focus:ring-store-accent';
@@ -49,6 +77,11 @@ const SECCIONES: SeccionDef[] = [
   { key: 'direcciones', label: 'Direcciones', icon: MapPin },
   { key: 'seguridad', label: 'Configurar mi cuenta', icon: ShieldCheck },
 ];
+
+/** Permite abrir el perfil directo en una sección vía `?seccion=direcciones`. */
+function esSeccionKey(valor: string | null): valor is SeccionKey {
+  return SECCIONES.some((seccion) => seccion.key === valor);
+}
 
 // ─── Piezas de UI ─────────────────────────────────────────────────────────────
 
@@ -369,6 +402,12 @@ function DireccionModal({ direccion, onClose, onSaved }: DireccionModalProps): R
   const [referencia, setReferencia] = useState(direccion?.referencia ?? '');
   const [codigoPostal, setCodigoPostal] = useState(direccion?.codigo_postal ?? '');
   const [esPrincipal, setEsPrincipal] = useState(direccion?.es_principal ?? false);
+  const [coordenadas, setCoordenadas] = useState<Coordenadas | null>(
+    direccion?.latitud != null && direccion?.longitud != null
+      ? { lat: direccion.latitud, lng: direccion.longitud }
+      : null
+  );
+  const [mapaAbierto, setMapaAbierto] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -377,6 +416,17 @@ function DireccionModal({ direccion, onClose, onSaved }: DireccionModalProps): R
     provincia.trim().length >= 2 &&
     distrito.trim().length >= 2 &&
     linea.trim().length >= 3;
+
+  /** Vuelca la ubicación elegida en el mapa sobre el formulario. */
+  const aplicarUbicacion = (ubicacion: UbicacionSeleccionada): void => {
+    if (ubicacion.departamento) setDepartamento(ubicacion.departamento);
+    if (ubicacion.provincia) setProvincia(ubicacion.provincia);
+    if (ubicacion.distrito) setDistrito(ubicacion.distrito);
+    if (ubicacion.direccion_linea) setLinea(ubicacion.direccion_linea);
+    if (ubicacion.codigo_postal) setCodigoPostal(ubicacion.codigo_postal);
+    setCoordenadas({ lat: ubicacion.latitud, lng: ubicacion.longitud });
+    setMapaAbierto(false);
+  };
 
   const onSubmit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
@@ -390,6 +440,8 @@ function DireccionModal({ direccion, onClose, onSaved }: DireccionModalProps): R
       direccion_linea: linea.trim(),
       referencia: referencia.trim() || null,
       codigo_postal: codigoPostal.trim() || null,
+      latitud: coordenadas?.lat ?? null,
+      longitud: coordenadas?.lng ?? null,
       es_principal: esPrincipal,
     };
     try {
@@ -410,7 +462,11 @@ function DireccionModal({ direccion, onClose, onSaved }: DireccionModalProps): R
   };
 
   return (
-    <Modal onClose={onClose} labelledBy="dir-modal-titulo" panelClassName="max-w-lg">
+    <Modal
+      onClose={onClose}
+      labelledBy="dir-modal-titulo"
+      panelClassName={mapaAbierto ? 'max-w-3xl' : 'max-w-lg'}
+    >
       <div className="mb-lg flex items-center justify-between">
         <h2 id="dir-modal-titulo" className="text-sm font-semibold text-ink">
           {editing ? 'Editar dirección' : 'Nueva dirección'}
@@ -441,6 +497,52 @@ function DireccionModal({ direccion, onClose, onSaved }: DireccionModalProps): R
         <div>
           <label htmlFor="dir-linea" className={LABEL_STORE}>Dirección</label>
           <Input id="dir-linea" value={linea} onChange={(e) => setLinea(e.target.value)} placeholder="Av. Larco 123, Dpto. 401" className={INPUT_STORE} />
+        </div>
+
+        {/* Ubicación exacta en Google Maps — carga diferida del SDK */}
+        <div className="rounded-md border border-store-line p-md">
+          <div className="flex flex-wrap items-center justify-between gap-sm">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-store-ink">Ubicación exacta en el mapa</p>
+              <p className="mt-xxs text-xs text-store-ink-soft">
+                {coordenadas
+                  ? `Marcada en ${formatearCoordenadas(coordenadas)}.`
+                  : 'Opcional: marca tu puerta para agilizar la entrega.'}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              aria-expanded={mapaAbierto}
+              onClick={() => setMapaAbierto((abierto) => !abierto)}
+            >
+              <MapPin size={13} aria-hidden="true" />
+              {mapaAbierto ? 'Ocultar mapa' : 'Seleccionar ubicación en el mapa'}
+            </Button>
+          </div>
+
+          {coordenadas && !mapaAbierto && (
+            <button
+              type="button"
+              onClick={() => setCoordenadas(null)}
+              className="mt-sm text-xs text-store-ink-mute underline underline-offset-2 hover:text-store-offer"
+            >
+              Quitar ubicación marcada
+            </button>
+          )}
+
+          {mapaAbierto && (
+            <div className="mt-md">
+              <Suspense fallback={<SkeletonMapa />}>
+                <MapaUbicacionPicker
+                  centroInicial={coordenadas}
+                  onConfirmar={aplicarUbicacion}
+                  onCancelar={() => setMapaAbierto(false)}
+                />
+              </Suspense>
+            </div>
+          )}
         </div>
 
         <div className="grid gap-md sm:grid-cols-2">
@@ -587,6 +689,12 @@ function SeccionDirecciones(): React.ReactElement {
                   {dir.distrito}, {dir.provincia} — {dir.departamento}
                 </span>
                 {dir.referencia && <span className="text-xs text-store-ink-mute">Ref: {dir.referencia}</span>}
+                {dir.latitud != null && dir.longitud != null && (
+                  <span className="inline-flex items-center gap-xs text-xs text-store-ink-mute">
+                    <MapPin size={11} aria-hidden="true" />
+                    Ubicación marcada en el mapa
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-xs">
@@ -632,8 +740,18 @@ function SeccionDirecciones(): React.ReactElement {
 export function PerfilPage(): React.ReactElement {
   const { usuario, logout } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const perfil = useApiData<PerfilCliente>('/api/v1/me');
-  const [seccion, setSeccion] = useState<SeccionKey>('datos');
+  const [seccion, setSeccion] = useState<SeccionKey>(() => {
+    const inicial = searchParams.get('seccion');
+    return esSeccionKey(inicial) ? inicial : 'datos';
+  });
+
+  // Si se navega al perfil con `?seccion=` estando ya montado, cambia de pestaña.
+  useEffect(() => {
+    const solicitada = searchParams.get('seccion');
+    if (esSeccionKey(solicitada)) setSeccion(solicitada);
+  }, [searchParams]);
 
   const cerrarSesion = (): void => {
     logout();

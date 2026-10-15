@@ -59,6 +59,9 @@ export interface DireccionItem {
   direccion_linea: string;
   referencia: string | null;
   codigo_postal: string | null;
+  /** Ubicación exacta elegida en el mapa (migración 012). `null` si no se usó. */
+  latitud: number | null;
+  longitud: number | null;
   es_principal: boolean;
   creado_en: string;
   actualizado_en: string;
@@ -71,5 +74,7 @@ export interface DireccionPayload {
   direccion_linea: string;
   referencia?: string | null;
   codigo_postal?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
   es_principal?: boolean;
 }
