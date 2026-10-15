@@ -40,6 +40,32 @@ export interface DetalleProducto {
   variantes: ProductoPublico[];
 }
 
+/** HU034: banner vigente que consume la portada. */
+export interface BannerPublico {
+  id: string;
+  ubicacion: 'HERO' | 'TICKER' | 'BANDA_EDITORIAL';
+  titulo: string;
+  subtitulo: string | null;
+  cta_texto: string | null;
+  cta_url: string | null;
+  imagen_url: string;
+  orden: number;
+}
+
+/** HU034: contenido completo que devuelve GET /storefront/home. */
+export interface HomeData {
+  banners: {
+    hero: BannerPublico[];
+    ticker: BannerPublico[];
+    banda: BannerPublico[];
+  };
+  config: Record<string, unknown>;
+  categorias: CategoriaPublicaNodo[];
+  ofertas: ProductoPublico[];
+  nuevos: ProductoPublico[];
+  destacados: ProductoPublico[];
+}
+
 /** Filtros del catálogo público. */
 export interface FiltrosCatalogo {
   search?: string;

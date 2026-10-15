@@ -16,6 +16,7 @@ import { CategoriesPage } from './pages/admin/CategoriesPage';
 import { ProductsPage } from './pages/admin/ProductsPage';
 import { InventoryPage } from './pages/admin/InventoryPage';
 import { ColorsPage } from './pages/admin/ColorsPage';
+import { ContentPage } from './pages/admin/ContentPage';
 import { ComingSoonPage } from './pages/admin/ComingSoonPage';
 
 function App(): React.ReactElement {
@@ -50,6 +51,7 @@ function App(): React.ReactElement {
               <Route path="/admin/products" element={<ProductsPage />} />
               <Route path="/admin/inventory" element={<InventoryPage />} />
               <Route path="/admin/colors" element={<ColorsPage />} />
+              <Route path="/admin/contenido" element={<ContentPage />} />
 
               {/* Módulos de sprints futuros (placeholders navegables) */}
               <Route

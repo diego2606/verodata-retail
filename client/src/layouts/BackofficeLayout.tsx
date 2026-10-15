@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  LayoutTemplate,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Categorías', href: '/admin/categories', icon: Tags },
   { label: 'Colores',    href: '/admin/colors',     icon: Palette },
   { label: 'Inventario', href: '/admin/inventory',  icon: Warehouse },
+  { label: 'Contenido',  href: '/admin/contenido',  icon: LayoutTemplate },
   { label: 'Pedidos',    href: '/admin/orders',     icon: ShoppingCart },
   { label: 'Usuarios',   href: '/admin/users',      icon: Users, onlyFor: 'SUPER_ADMIN' },
 ];
@@ -46,6 +48,7 @@ const SECTION_LABELS: Record<string, string> = {
   categories: 'Categorías',
   colors: 'Colores',
   inventory: 'Inventario',
+  contenido: 'Contenido',
   orders: 'Pedidos',
   users: 'Usuarios',
 };

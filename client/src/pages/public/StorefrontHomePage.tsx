@@ -1,120 +1,192 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CreditCard, RefreshCcw, Truck, Wallet } from 'lucide-react';
+import { ArrowRight, CreditCard, RefreshCcw, Truck, Wallet, type LucideIcon } from 'lucide-react';
 import { useApiData } from '../../lib/useApiData';
-import { aplanarCategorias, soloOfertas } from '../../lib/storefront';
+import { aplanarCategorias } from '../../lib/storefront';
 import { ProductCard } from '../../components/storefront/ProductCard';
 import { EstadoError, GrillaSkeleton } from '../../components/storefront/Estados';
-import type { CatalogoPaginado, CategoriaPublicaNodo, ProductoPublico } from '../../types/storefront.types';
+import type { BannerPublico, HomeData, ProductoPublico } from '../../types/storefront.types';
+import type { FranjaConfianza } from '../../types/banner.types';
 
 const CONTENEDOR = 'mx-auto w-full max-w-[1200px] px-lg';
 
-export function StorefrontHomePage(): React.ReactElement {
-  const categorias = useApiData<CategoriaPublicaNodo[]>('/api/v1/storefront/categories');
-  const productos = useApiData<CatalogoPaginado>('/api/v1/storefront/products?limite=16');
+const FRANJA_DEFECTO: FranjaConfianza[] = [
+  { titulo: 'Envíos a todo el Perú', texto: 'Despacho en 24–48 horas.' },
+  { titulo: 'Cambios sin costo', texto: 'Hasta 30 días después de tu compra.' },
+  { titulo: 'Yape y Plin', texto: 'Pagos móviles al instante.' },
+  { titulo: 'Compra en cuotas', texto: 'Con tarjetas participantes.' },
+];
 
-  const ofertas = productos.estado.status === 'success'
-    ? soloOfertas(productos.estado.data.items).slice(0, 5)
-    : [];
-  const nuevos = productos.estado.status === 'success'
-    ? productos.estado.data.items.slice(0, 5)
-    : [];
-  const chips = categorias.estado.status === 'success'
-    ? aplanarCategorias(categorias.estado.data).filter((c) => c.nivel === 0).slice(0, 8)
-    : [];
+const ICONOS_CONFIANZA: LucideIcon[] = [Truck, RefreshCcw, Wallet, CreditCard];
+
+function esFranja(valor: unknown): valor is FranjaConfianza {
+  return typeof valor === 'object' && valor !== null && 'titulo' in valor && 'texto' in valor;
+}
+
+function leerFranja(config: Record<string, unknown>): FranjaConfianza[] {
+  const valor = config.franja_confianza;
+  if (Array.isArray(valor)) {
+    const items = valor.filter(esFranja).map((v) => ({ titulo: String(v.titulo), texto: String(v.texto) }));
+    if (items.length > 0) return items;
+  }
+  return FRANJA_DEFECTO;
+}
+
+export function StorefrontHomePage(): React.ReactElement {
+  const home = useApiData<HomeData>('/api/v1/storefront/home');
+  const data = home.estado.status === 'success' ? home.estado.data : null;
 
   return (
     <div className={`${CONTENEDOR} flex flex-col gap-huge py-xl`}>
-      {/* Hero editorial estático (sin video) */}
-      <section className="overflow-hidden rounded-lg bg-store-ink px-xl py-huge text-white">
-        <div className="flex max-w-[560px] flex-col gap-md">
-          <span className="text-sm font-medium uppercase tracking-widest text-white/70">Nueva temporada</span>
-          <h1 className="text-display-lg font-semibold">Equípate para el día a día</h1>
-          <p className="text-base text-white/80">
-            Calzado, indumentaria y accesorios seleccionados. Envíos a todo el Perú.
-          </p>
-          <div>
-            <Link
-              to="/catalogo"
-              className="inline-flex items-center gap-sm rounded-xs bg-white px-lg py-md text-sm font-semibold text-store-ink transition-colors hover:bg-white/90"
-            >
-              Ver todo
-              <ArrowRight size={16} aria-hidden="true" />
-            </Link>
-          </div>
-        </div>
-      </section>
+      {home.estado.status === 'loading' && <InicioSkeleton />}
 
-      {/* Accesos por departamento */}
-      {chips.length > 0 && (
-        <section className="flex flex-col gap-md">
-          <div className="flex flex-wrap gap-sm">
-            {chips.map((chip) => (
-              <Link
-                key={chip.id}
-                to={`/catalogo?categoria_id=${chip.id}`}
-                className="rounded-full border border-store-line bg-store-surface px-lg py-sm text-sm font-medium text-store-ink-soft transition-colors hover:border-store-ink hover:text-store-ink"
-              >
-                {chip.nombre}
-              </Link>
-            ))}
-          </div>
-        </section>
+      {home.estado.status === 'error' && (
+        <EstadoError mensaje={home.estado.message} onReintentar={home.recargar} />
       )}
 
-      {/* Contenido de producto: estados loading / error / éxito */}
-      {productos.estado.status === 'loading' && (
-        <section className="flex flex-col gap-md">
-          <div className="h-6 w-40 animate-pulse rounded-full bg-store-line" />
-          <GrillaSkeleton cantidad={5} />
-        </section>
-      )}
-
-      {productos.estado.status === 'error' && (
-        <EstadoError mensaje={productos.estado.message} onReintentar={productos.recargar} />
-      )}
-
-      {productos.estado.status === 'success' && (
+      {data && (
         <>
-          {ofertas.length > 0 && (
-            <Vitrina titulo="Ofertas de la semana" productos={ofertas} />
+          {data.banners.ticker.length > 0 && <Ticker banner={data.banners.ticker[0]} />}
+
+          <Hero banner={data.banners.hero[0] ?? null} />
+
+          {data.categorias.length > 0 && (
+            <section className="flex flex-wrap gap-sm">
+              {aplanarCategorias(data.categorias)
+                .filter((c) => c.nivel === 0)
+                .slice(0, 8)
+                .map((chip) => (
+                  <Link
+                    key={chip.id}
+                    to={`/catalogo?categoria_id=${chip.id}`}
+                    className="rounded-full border border-store-line bg-store-surface px-lg py-sm text-sm font-medium text-store-ink-soft transition-colors hover:border-store-ink hover:text-store-ink"
+                  >
+                    {chip.nombre}
+                  </Link>
+                ))}
+            </section>
           )}
-          <Vitrina titulo="Nuevos ingresos" productos={nuevos} />
+
+          {data.destacados.length > 0 && <Vitrina titulo="Destacados" productos={data.destacados} />}
+          {data.ofertas.length > 0 && <Vitrina titulo="Ofertas de la semana" productos={data.ofertas} />}
+          <Vitrina titulo="Nuevos ingresos" productos={data.nuevos} />
+
+          {data.banners.banda.length > 0 && <BandaEditorial banner={data.banners.banda[0]} />}
+
+          <FranjaConfianza items={leerFranja(data.config)} />
         </>
       )}
-
-      {/* Franja de confianza */}
-      <section className="grid gap-lg rounded-lg border border-store-line bg-store-surface p-xl md:grid-cols-4">
-        <Confianza icono={<Truck size={20} />} titulo="Envíos a todo el Perú" texto="Despacho en 24–48 horas." />
-        <Confianza icono={<RefreshCcw size={20} />} titulo="Cambios sin costo" texto="Hasta 30 días después de tu compra." />
-        <Confianza icono={<Wallet size={20} />} titulo="Yape y Plin" texto="Pagos móviles al instante." />
-        <Confianza icono={<CreditCard size={20} />} titulo="Compra en cuotas" texto="Con tarjetas participantes." />
-      </section>
     </div>
   );
 }
 
-interface VitrinaProps {
-  titulo: string;
-  productos: ProductoPublico[];
+// ─── Secciones ────────────────────────────────────────────────────────────────
+
+function Ticker({ banner }: { banner: BannerPublico }): React.ReactElement {
+  return (
+    <section className="overflow-hidden rounded-sm bg-store-ink text-white">
+      <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-between gap-sm px-lg py-sm">
+        <p className="text-sm">
+          <span className="font-semibold">{banner.titulo}</span>
+          {banner.subtitulo ? <span className="text-white/80"> · {banner.subtitulo}</span> : null}
+        </p>
+        {banner.cta_texto && (
+          <Link
+            to={banner.cta_url || '/catalogo'}
+            className="rounded-md bg-white px-md py-xs text-xs font-semibold text-store-ink transition-colors hover:bg-white/90"
+          >
+            {banner.cta_texto}
+          </Link>
+        )}
+      </div>
+    </section>
+  );
 }
 
-function Vitrina({ titulo, productos }: VitrinaProps): React.ReactElement | null {
+function Hero({ banner }: { banner: BannerPublico | null }): React.ReactElement {
+  if (!banner) {
+    return (
+      <section className="overflow-hidden rounded-lg bg-store-ink px-xl py-huge text-white">
+        <div className="flex max-w-[560px] flex-col gap-md">
+          <span className="text-sm font-medium uppercase tracking-widest text-white/70">Nueva temporada</span>
+          <h1 className="text-display-lg font-semibold">Equípate para el día a día</h1>
+          <p className="text-base text-white/80">Calzado, indumentaria y accesorios seleccionados. Envíos a todo el Perú.</p>
+          <div>
+            <Link to="/catalogo" className="inline-flex items-center gap-sm rounded-md bg-white px-lg py-md text-sm font-semibold text-store-ink transition-colors hover:bg-white/90">
+              Ver todo <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="relative overflow-hidden rounded-lg">
+      <img src={banner.imagen_url} alt="" className="h-[320px] w-full object-cover md:h-[400px]" />
+      <div className="absolute inset-0 flex flex-col justify-center gap-md bg-ink/50 p-xl text-white">
+        <h1 className="max-w-[560px] text-display-lg font-semibold">{banner.titulo}</h1>
+        {banner.subtitulo && <p className="max-w-[520px] text-base text-white/85">{banner.subtitulo}</p>}
+        {banner.cta_texto && (
+          <div>
+            <Link to={banner.cta_url || '/catalogo'} className="inline-flex items-center gap-sm rounded-md bg-white px-lg py-md text-sm font-semibold text-store-ink transition-colors hover:bg-white/90">
+              {banner.cta_texto} <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function BandaEditorial({ banner }: { banner: BannerPublico }): React.ReactElement {
+  return (
+    <section className="grid items-stretch overflow-hidden rounded-lg border border-store-line bg-store-surface md:grid-cols-2">
+      <img src={banner.imagen_url} alt="" className="h-56 w-full object-cover md:h-full" />
+      <div className="flex flex-col justify-center gap-md p-xl">
+        <h2 className="text-display-md font-semibold text-store-ink">{banner.titulo}</h2>
+        {banner.subtitulo && <p className="text-base text-store-ink-soft">{banner.subtitulo}</p>}
+        {banner.cta_texto && (
+          <div>
+            <Link to={banner.cta_url || '/catalogo'} className="inline-flex items-center gap-sm rounded-md bg-store-ink px-lg py-md text-sm font-semibold text-white transition-colors hover:bg-store-ink/90">
+              {banner.cta_texto} <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function FranjaConfianza({ items }: { items: FranjaConfianza[] }): React.ReactElement {
+  return (
+    <section className="grid gap-lg rounded-lg border border-store-line bg-store-surface p-xl md:grid-cols-4">
+      {items.map((item, index) => {
+        const Icono = ICONOS_CONFIANZA[index % ICONOS_CONFIANZA.length];
+        return (
+          <div key={`${item.titulo}-${index}`} className="flex flex-col gap-xs">
+            <span className="text-store-ink" aria-hidden="true"><Icono size={20} /></span>
+            <span className="text-sm font-semibold text-store-ink">{item.titulo}</span>
+            <span className="text-sm text-store-ink-soft">{item.texto}</span>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function Vitrina({ titulo, productos }: { titulo: string; productos: ProductoPublico[] }): React.ReactElement | null {
   if (productos.length === 0) return null;
   return (
     <section className="flex flex-col gap-md">
       <div className="flex items-end justify-between gap-md">
         <h2 className="text-heading-lg font-semibold text-store-ink">{titulo}</h2>
-        <Link
-          to="/catalogo"
-          className="flex items-center gap-xs text-sm font-medium text-store-accent hover:underline"
-        >
-          Ver más
-          <ArrowRight size={14} aria-hidden="true" />
+        <Link to="/catalogo" className="flex items-center gap-xs text-sm font-medium text-store-accent hover:underline">
+          Ver más <ArrowRight size={14} aria-hidden="true" />
         </Link>
       </div>
       <div className="grid grid-cols-2 gap-md md:grid-cols-3 lg:grid-cols-5">
-        {productos.map((producto) => (
+        {productos.slice(0, 5).map((producto) => (
           <ProductCard key={producto.id} producto={producto} />
         ))}
       </div>
@@ -122,18 +194,16 @@ function Vitrina({ titulo, productos }: VitrinaProps): React.ReactElement | null
   );
 }
 
-interface ConfianzaProps {
-  icono: React.ReactNode;
-  titulo: string;
-  texto: string;
-}
-
-function Confianza({ icono, titulo, texto }: ConfianzaProps): React.ReactElement {
+function InicioSkeleton(): React.ReactElement {
   return (
-    <div className="flex flex-col gap-xs">
-      <span className="text-store-ink" aria-hidden="true">{icono}</span>
-      <span className="text-sm font-semibold text-store-ink">{titulo}</span>
-      <span className="text-sm text-store-ink-soft">{texto}</span>
+    <div className="flex animate-pulse flex-col gap-huge">
+      <div className="h-[320px] rounded-lg bg-store-line/60 md:h-[400px]" />
+      <div className="flex gap-sm">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-9 w-28 rounded-full bg-store-line/60" />
+        ))}
+      </div>
+      <GrillaSkeleton cantidad={5} />
     </div>
   );
 }
