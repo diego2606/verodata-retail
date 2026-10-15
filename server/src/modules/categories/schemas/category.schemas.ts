@@ -67,6 +67,11 @@ export const categoriaIdParamSchema = z.object({
   id: z.coerce.number().int().positive({ message: 'Identificador de categoría inválido' }),
 });
 
+/** Body de PATCH /api/v1/categories/orden — reordenamiento de hermanas. */
+export const reordenarCategoriasSchema = z.object({
+  ids: z.array(z.coerce.number().int().positive()).min(1),
+});
+
 export type CrearCategoriaInput = z.infer<typeof crearCategoriaSchema>;
 export type ActualizarCategoriaInput = z.infer<typeof actualizarCategoriaSchema>;
 export type ListarCategoriasQuery = z.infer<typeof listarCategoriasQuerySchema>;

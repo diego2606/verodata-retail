@@ -15,6 +15,7 @@ export interface CategoriaRow {
   sku_prefijo: string | null;
   sku_segmentos: string[] | null;
   activo: boolean;
+  orden: number;
   creado_en: Date;
   productos_count: number;
   hijos_count: number;
@@ -64,6 +65,7 @@ const SELECT_CATEGORIA = `
     c.sku_prefijo,
     c.sku_segmentos,
     c.activo,
+    c.orden,
     c.creado_en,
     COUNT(DISTINCT p.id)::int AS productos_count,
     COUNT(DISTINCT h.id)::int AS hijos_count
@@ -82,7 +84,7 @@ export const categoryRepository = {
       WHERE ($1::text IS NULL OR c.nombre ILIKE $1 OR c.slug ILIKE $1)
         AND ($2::boolean IS NULL OR c.activo = $2)
       GROUP BY c.id
-      ORDER BY c.nombre ASC
+      ORDER BY c.categoria_padre_id NULLS FIRST, c.orden ASC, c.nombre ASC
     `;
     const result = await pool.query<CategoriaRow>(query, [search, activo]);
     return result.rows;
@@ -245,5 +247,22 @@ export const categoryRepository = {
 
   async eliminar(id: number): Promise<void> {
     await pool.query(`DELETE FROM categorias WHERE id = $1`, [id]);
+  },
+
+  /** Reordena en lote: `orden` = posición en el arreglo (transaccional). */
+  async reordenar(ids: number[]): Promise<void> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (let index = 0; index < ids.length; index += 1) {
+        await client.query(`UPDATE categorias SET orden = $1 WHERE id = $2`, [index, ids[index]]);
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 };

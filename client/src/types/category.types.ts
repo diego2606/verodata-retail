@@ -14,6 +14,8 @@ export interface CategoriaItem {
   /** HU031: orden de segmentos de la plantilla de SKU. */
   sku_segmentos: string[] | null;
   activo: boolean;
+  /** Orden manual dentro del mismo padre. */
+  orden: number;
   creado_en: string;
   productos_count: number;
   hijos_count: number;

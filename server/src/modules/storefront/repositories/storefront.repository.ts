@@ -33,6 +33,7 @@ export interface BannerVigenteRow {
   id: string;
   ubicacion: 'HERO' | 'TICKER' | 'BANDA_EDITORIAL';
   titulo: string;
+  etiqueta: string | null;
   subtitulo: string | null;
   cta_texto: string | null;
   cta_url: string | null;
@@ -127,7 +128,7 @@ export const storefrontRepository = {
       `SELECT id, nombre, slug, descripcion, categoria_padre_id
        FROM categorias
        WHERE activo = TRUE
-       ORDER BY nombre ASC`
+       ORDER BY orden ASC, nombre ASC`
     );
     return result.rows;
   },
@@ -135,7 +136,7 @@ export const storefrontRepository = {
   /** HU034 CA05: banners activos y dentro de su vigencia. */
   async listarBannersVigentes(): Promise<BannerVigenteRow[]> {
     const result = await pool.query<BannerVigenteRow>(
-      `SELECT id, ubicacion, titulo, subtitulo, cta_texto, cta_url, imagen_url, orden
+      `SELECT id, ubicacion, titulo, etiqueta, subtitulo, cta_texto, cta_url, imagen_url, orden
        FROM banners
        WHERE activo = TRUE
          AND (vigente_desde IS NULL OR vigente_desde <= NOW())

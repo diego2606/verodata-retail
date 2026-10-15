@@ -4,6 +4,7 @@ import {
   categoriaIdParamSchema,
   crearCategoriaSchema,
   listarCategoriasQuerySchema,
+  reordenarCategoriasSchema,
 } from '../schemas/category.schemas';
 import { categoryService } from '../services/category.service';
 import { ApiFailure } from '../../../shared/types/api.types';
@@ -126,6 +127,20 @@ export const categoryController = {
       res.status(200).json(result);
     } catch (error) {
       console.error('[CategoryController] eliminar error:', error);
+      res.status(500).json(internalError());
+    }
+  },
+
+  async reordenar(req: Request, res: Response): Promise<void> {
+    try {
+      const parsed = reordenarCategoriasSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(validationError(parsed.error.flatten().fieldErrors));
+        return;
+      }
+      res.status(200).json(await categoryService.reordenar(parsed.data.ids));
+    } catch (error) {
+      console.error('[CategoryController] reordenar error:', error);
       res.status(500).json(internalError());
     }
   },

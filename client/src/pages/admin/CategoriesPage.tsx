@@ -4,6 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   CornerDownRight,
   Pencil,
   Plus,
@@ -68,7 +70,7 @@ function ordenarJerarquia(categorias: CategoriaItem[]): Array<{ categoria: Categ
     porPadre.set(key, lista);
   }
   for (const lista of porPadre.values()) {
-    lista.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    lista.sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre, 'es'));
   }
   const salida: Array<{ categoria: CategoriaItem; depth: number }> = [];
   const visitados = new Set<number>();
@@ -731,6 +733,40 @@ export function CategoriesPage(): React.ReactElement {
 
   const reload = useCallback((): void => setReloadKey(k => k + 1), []);
 
+  /** Mueve una categoría arriba/abajo dentro de sus hermanas (mismo padre). */
+  const mover = useCallback(
+    async (categoria: CategoriaItem, delta: number): Promise<void> => {
+      const hermanas = categorias
+        .filter(c => c.categoria_padre_id === categoria.categoria_padre_id)
+        .sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre, 'es'));
+      const i = hermanas.findIndex(c => c.id === categoria.id);
+      const j = i + delta;
+      if (i < 0 || j < 0 || j >= hermanas.length) return;
+
+      const reordenadas = [...hermanas];
+      const temporal = reordenadas[i];
+      reordenadas[i] = reordenadas[j];
+      reordenadas[j] = temporal;
+
+      try {
+        const json = await apiClient.patch<{ ids: number[] }>('/api/v1/categories/orden', {
+          ids: reordenadas.map(c => c.id),
+        });
+        if (!json.success) {
+          setToast({ type: 'error', message: json.error.message });
+          return;
+        }
+        reload();
+      } catch (error) {
+        setToast({
+          type: 'error',
+          message: error instanceof ApiClientError ? error.message : 'Error al reordenar',
+        });
+      }
+    },
+    [categorias, reload]
+  );
+
   const clearFilters = useCallback((): void => {
     setSearch('');
     setEstadoFilter('');
@@ -902,6 +938,30 @@ export function CategoriesPage(): React.ReactElement {
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center justify-end gap-xs">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            void mover(c, -1);
+                          }}
+                          aria-label="Subir"
+                          title="Subir"
+                        >
+                          <ArrowUp size={13} aria-hidden="true" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            void mover(c, 1);
+                          }}
+                          aria-label="Bajar"
+                          title="Bajar"
+                        >
+                          <ArrowDown size={13} aria-hidden="true" />
+                        </Button>
                         <Button
                           type="button"
                           variant="secondary"

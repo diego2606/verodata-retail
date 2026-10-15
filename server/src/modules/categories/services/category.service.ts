@@ -214,4 +214,10 @@ export const categoryService = {
     await categoryRepository.eliminar(id);
     return { success: true, message: 'Categoría eliminada correctamente', data: { id } };
   },
+
+  /** Reordena categorías hermanas (mismo padre) según la posición enviada. */
+  async reordenar(ids: number[]): Promise<ApiResponse<{ ids: number[] }>> {
+    await categoryRepository.reordenar(ids);
+    return { success: true, message: 'Orden actualizado correctamente', data: { ids } };
+  },
 };
