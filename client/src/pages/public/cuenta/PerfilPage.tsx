@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
   LogOut,
   MapPin,
   Pencil,
@@ -102,27 +104,29 @@ function FilaCampos({
   };
 
   return (
-    <div className="border-b border-store-line py-md last:border-b-0">
-      <div className="flex items-start justify-between gap-md">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-store-ink-mute">{titulo}</h4>
-        {editor && !editando && (
-          <button
-            type="button"
-            onClick={() => setEditando(true)}
-            className="shrink-0 text-sm font-medium text-store-accent hover:underline"
-          >
-            Editar
-          </button>
-        )}
-      </div>
-
+    <div className="border-b border-store-line py-lg last:border-b-0">
       {!editando ? (
-        <div className="mt-xs flex items-center gap-sm text-sm text-store-ink">
-          {valor}
-          {tooltip && <Tooltip texto={tooltip} />}
+        <div className="flex items-start justify-between gap-md">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-store-ink-soft">{titulo}</p>
+            <div className="mt-xs flex items-center gap-sm text-base text-store-ink">
+              {valor}
+              {tooltip && <Tooltip texto={tooltip} />}
+            </div>
+          </div>
+          {editor && (
+            <button
+              type="button"
+              onClick={() => setEditando(true)}
+              className="shrink-0 text-sm font-medium text-store-ink underline underline-offset-2 hover:text-store-accent"
+            >
+              Editar
+            </button>
+          )}
         </div>
       ) : (
-        <div className="mt-sm flex flex-col gap-sm">
+        <div className="flex flex-col gap-sm">
+          <p className="text-sm text-store-ink-soft">{titulo}</p>
           {editor}
           {error && (
             <p role="alert" aria-live="polite" className="text-xs text-store-offer">
@@ -207,7 +211,7 @@ function SeccionDatos({ perfil, onActualizado }: DatosProps): React.ReactElement
         </div>
       )}
 
-      <div className="grid gap-lg md:grid-cols-2">
+      <div className="flex flex-col">
         <FilaCampos
           titulo="Nombre y apellidos"
           valor={`${perfil.nombres ?? ''} ${perfil.apellidos ?? ''}`.trim() || '—'}
@@ -637,27 +641,29 @@ export function PerfilPage(): React.ReactElement {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1040px] py-xl">
-      <div className="mb-lg">
-        <h1 className="text-display-md font-semibold text-store-ink">Mi cuenta</h1>
-        <p className="mt-xs text-sm text-store-ink-soft">
-          Hola
-          {perfil.estado.status === 'success' && perfil.estado.data.nombres
-            ? `, ${perfil.estado.data.nombres}`
-            : usuario?.nombre
-              ? `, ${usuario.nombre}`
-              : ''}
-          . Gestiona tus datos, seguridad y direcciones.
-        </p>
-      </div>
+    <div className="mx-auto w-full max-w-[1040px] px-lg py-xl">
+      <Link
+        to="/catalogo"
+        className="inline-flex items-center gap-xs text-sm text-store-ink-soft hover:text-store-ink"
+      >
+        <ChevronLeft size={16} aria-hidden="true" />
+        Mi cuenta
+      </Link>
+      <h1 className="mt-sm text-display-md font-semibold text-store-ink">Mi perfil</h1>
+      <p className="mt-xs text-sm text-store-ink-soft">
+        Hola
+        {perfil.estado.status === 'success' && perfil.estado.data.nombres
+          ? `, ${perfil.estado.data.nombres}`
+          : usuario?.nombre
+            ? `, ${usuario.nombre}`
+            : ''}
+        . Gestiona tus datos, seguridad y direcciones.
+      </p>
 
-      <div className="grid gap-lg md:grid-cols-[248px_1fr]">
+      <div className="mt-lg grid items-start gap-lg md:grid-cols-[256px_1fr]">
         {/* Menú lateral */}
-        <aside>
-          <nav
-            className="flex gap-xs overflow-x-auto md:flex-col md:overflow-visible"
-            aria-label="Secciones de mi cuenta"
-          >
+        <aside className="overflow-hidden rounded-lg border border-store-line bg-store-surface">
+          <nav className="flex flex-col" aria-label="Secciones de mi cuenta">
             {SECCIONES.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -665,29 +671,33 @@ export function PerfilPage(): React.ReactElement {
                 aria-current={seccion === key}
                 onClick={() => setSeccion(key)}
                 className={cn(
-                  'flex shrink-0 items-center gap-sm rounded-md border px-md py-sm text-sm font-medium transition-colors md:w-full md:justify-start',
-                  seccion === key
-                    ? 'border-store-ink bg-store-ink text-white'
-                    : 'border-store-line bg-store-surface text-store-ink-soft hover:text-store-ink'
+                  'flex items-center gap-md border-b border-store-line px-lg py-md text-left text-sm transition-colors hover:bg-store-canvas',
+                  seccion === key ? 'font-semibold text-store-ink' : 'text-store-ink-soft'
                 )}
               >
-                <Icon size={16} aria-hidden="true" />
-                {label}
+                <Icon size={22} aria-hidden="true" className="shrink-0" />
+                <span className="flex-1">{label}</span>
+                <ChevronRight size={16} className="shrink-0 text-store-ink-mute" aria-hidden="true" />
               </button>
             ))}
             <button
               type="button"
               onClick={cerrarSesion}
-              className="flex shrink-0 items-center gap-sm rounded-md border border-store-line bg-store-surface px-md py-sm text-sm font-medium text-store-ink-soft transition-colors hover:border-store-offer hover:text-store-offer md:mt-md md:w-full md:justify-start"
+              className="flex items-center gap-md px-lg py-md text-left text-sm text-store-ink-soft transition-colors hover:bg-store-canvas hover:text-store-offer"
             >
-              <LogOut size={16} aria-hidden="true" />
-              Cerrar sesión
+              <LogOut size={22} aria-hidden="true" className="shrink-0" />
+              <span className="flex-1">Cerrar sesión</span>
+              <ChevronRight size={16} className="shrink-0 text-store-ink-mute" aria-hidden="true" />
             </button>
           </nav>
         </aside>
 
         {/* Panel de contenido */}
-        <section className="rounded-lg border border-store-line bg-store-surface p-xl">
+        <section className="min-w-0">
+          <h2 className="mb-md text-heading-lg font-semibold text-store-ink">
+            {SECCIONES.find((s) => s.key === seccion)?.label}
+          </h2>
+          <div className="rounded-lg border border-store-line bg-store-surface p-xl">
           {perfil.estado.status === 'loading' && (
             <div className="space-y-md">
               <div className="h-5 w-40 animate-pulse rounded-full bg-store-line" />
@@ -706,9 +716,6 @@ export function PerfilPage(): React.ReactElement {
 
           {perfil.estado.status === 'success' && (
             <>
-              <h2 className="mb-md text-heading-md font-semibold text-store-ink">
-                {SECCIONES.find((s) => s.key === seccion)?.label}
-              </h2>
               {seccion === 'datos' && (
                 <SeccionDatos perfil={perfil.estado.data} onActualizado={perfil.recargar} />
               )}
@@ -716,6 +723,7 @@ export function PerfilPage(): React.ReactElement {
               {seccion === 'seguridad' && <SeccionSeguridad />}
             </>
           )}
+          </div>
         </section>
       </div>
     </div>
