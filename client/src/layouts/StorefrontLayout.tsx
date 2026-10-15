@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { ChevronDown, MapPin, Menu, Search, ShoppingBag, User } from 'lucide-react';
+import { Menu, Search, ShoppingBag, User } from 'lucide-react';
 import { ColoresProvider } from '../context/ColoresContext';
 import { useAuth } from '../context/AuthContext';
 import { useLoginModal } from '../context/LoginModalContext';
 import { PerfilIncompletoBanner } from '../components/storefront/PerfilIncompletoBanner';
 import { MegaMenu } from '../components/storefront/MegaMenu';
+import { SelectorUbicacion } from '../components/storefront/SelectorUbicacion';
+import { FooterTienda } from '../components/storefront/FooterTienda';
 import { CONTENEDOR_TIENDA } from '../lib/utils';
 
 const CONTENEDOR = CONTENEDOR_TIENDA;
@@ -128,15 +130,7 @@ export function StorefrontLayout(): React.ReactElement {
               <Menu size={18} aria-hidden="true" />
               Todas las categorías
             </button>
-            <button
-              type="button"
-              className="flex items-center gap-sm text-store-ink-soft hover:text-store-ink"
-              title="Selector de distrito (próximamente)"
-            >
-              <MapPin size={16} aria-hidden="true" />
-              Entrega en: <span className="font-medium text-store-ink">Lima</span>
-              <ChevronDown size={14} aria-hidden="true" />
-            </button>
+            <SelectorUbicacion />
           </div>
         </div>
 
@@ -159,53 +153,8 @@ export function StorefrontLayout(): React.ReactElement {
         </ColoresProvider>
       </main>
 
-      <footer className="mt-huge border-t border-store-line bg-store-surface">
-        <div className={`${CONTENEDOR} grid gap-xl py-xxl md:grid-cols-4`}>
-          <div className="flex flex-col gap-sm">
-            <span className="text-lg font-bold">VeroData</span>
-            <p className="text-sm text-store-ink-soft">
-              Calzado, indumentaria y accesorios con envíos a todo el Perú.
-            </p>
-          </div>
-          <FooterColumna titulo="Comprar" enlaces={[
-            { label: 'Todo el catálogo', to: '/catalogo' },
-            { label: 'Ofertas', to: '/catalogo' },
-          ]} />
-          <FooterColumna titulo="Ayuda" enlaces={[
-            { label: 'Cambios y devoluciones', to: '/catalogo' },
-            { label: 'Rastrea tu pedido', to: '/catalogo' },
-          ]} />
-          <div className="flex flex-col gap-sm">
-            <span className="text-sm font-semibold text-store-ink">Pagos</span>
-            <p className="text-sm text-store-ink-soft">Yape · Plin · Tarjetas · Transferencia</p>
-          </div>
-        </div>
-        <div className="border-t border-store-line">
-          <div className={`${CONTENEDOR} py-lg text-xs text-store-ink-mute`}>
-            © {new Date().getFullYear()} VeroData Retail S.A.C. Todos los derechos reservados.
-          </div>
-        </div>
-      </footer>
+      <FooterTienda />
     </div>
   );
 }
 
-interface FooterColumnaProps {
-  titulo: string;
-  enlaces: Array<{ label: string; to: string }>;
-}
-
-function FooterColumna({ titulo, enlaces }: FooterColumnaProps): React.ReactElement {
-  return (
-    <div className="flex flex-col gap-sm">
-      <span className="text-sm font-semibold text-store-ink">{titulo}</span>
-      <nav className="flex flex-col gap-xs">
-        {enlaces.map((enlace) => (
-          <Link key={enlace.label} to={enlace.to} className="text-sm text-store-ink-soft hover:text-store-ink">
-            {enlace.label}
-          </Link>
-        ))}
-      </nav>
-    </div>
-  );
-}

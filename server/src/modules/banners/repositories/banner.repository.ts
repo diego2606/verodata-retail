@@ -5,6 +5,8 @@ export interface BannerRow {
   id: string;
   ubicacion: BannerUbicacion;
   titulo: string;
+  /** Sobre-título (eyebrow) sobre el titular. Migración 014. */
+  etiqueta: string | null;
   subtitulo: string | null;
   cta_texto: string | null;
   cta_url: string | null;
@@ -20,6 +22,7 @@ export interface BannerRow {
 export interface CrearBannerData {
   ubicacion: BannerUbicacion;
   titulo: string;
+  etiqueta: string | null;
   subtitulo: string | null;
   cta_texto: string | null;
   cta_url: string | null;
@@ -32,7 +35,7 @@ export interface CrearBannerData {
 
 export type ActualizarBannerData = Partial<CrearBannerData>;
 
-const COLUMNAS = `id, ubicacion, titulo, subtitulo, cta_texto, cta_url, imagen_url,
+const COLUMNAS = `id, ubicacion, titulo, etiqueta, subtitulo, cta_texto, cta_url, imagen_url,
   orden, activo, vigente_desde, vigente_hasta, creado_en, actualizado_en`;
 
 /** HU034: contenido editorial de portada (hero, cintillo y banda). */
@@ -61,12 +64,13 @@ export const bannerRepository = {
   async crear(data: CrearBannerData): Promise<BannerRow> {
     const result = await pool.query<BannerRow>(
       `INSERT INTO banners
-         (ubicacion, titulo, subtitulo, cta_texto, cta_url, imagen_url, orden, activo, vigente_desde, vigente_hasta)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         (ubicacion, titulo, etiqueta, subtitulo, cta_texto, cta_url, imagen_url, orden, activo, vigente_desde, vigente_hasta)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING ${COLUMNAS}`,
       [
         data.ubicacion,
         data.titulo,
+        data.etiqueta,
         data.subtitulo,
         data.cta_texto,
         data.cta_url,
@@ -90,6 +94,7 @@ export const bannerRepository = {
     };
     if (data.ubicacion !== undefined) add('ubicacion', data.ubicacion);
     if (data.titulo !== undefined) add('titulo', data.titulo);
+    if (data.etiqueta !== undefined) add('etiqueta', data.etiqueta);
     if (data.subtitulo !== undefined) add('subtitulo', data.subtitulo);
     if (data.cta_texto !== undefined) add('cta_texto', data.cta_texto);
     if (data.cta_url !== undefined) add('cta_url', data.cta_url);

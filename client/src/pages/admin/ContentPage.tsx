@@ -25,6 +25,7 @@ import type {
   FranjaConfianza,
   SiteConfigItem,
 } from '../../types/banner.types';
+import { FRANJA_DEFECTO, leerFranja } from '../../lib/portada';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -40,13 +41,6 @@ const TABS: TabDef[] = [
   { key: 'TICKER', label: 'Cintillo' },
   { key: 'BANDA_EDITORIAL', label: 'Banda editorial' },
   { key: 'CONFIANZA', label: 'Confianza' },
-];
-
-const FRANJA_DEFECTO: FranjaConfianza[] = [
-  { titulo: 'Envíos a todo el Perú', texto: 'Despacho en 24–48 horas.' },
-  { titulo: 'Cambios sin costo', texto: 'Hasta 30 días después de tu compra.' },
-  { titulo: 'Yape y Plin', texto: 'Pagos móviles al instante.' },
-  { titulo: 'Compra en cuotas', texto: 'Con tarjetas participantes.' },
 ];
 
 const labelClass = 'block text-xs font-medium text-ink mb-xs';
@@ -88,6 +82,7 @@ interface BannerModalProps {
 function BannerModal({ ubicacion, banner, onClose, onSaved }: BannerModalProps): React.ReactElement {
   const editing = banner !== null;
   const [titulo, setTitulo] = useState(banner?.titulo ?? '');
+  const [etiqueta, setEtiqueta] = useState(banner?.etiqueta ?? '');
   const [subtitulo, setSubtitulo] = useState(banner?.subtitulo ?? '');
   const [ctaTexto, setCtaTexto] = useState(banner?.cta_texto ?? '');
   const [ctaUrl, setCtaUrl] = useState(banner?.cta_url ?? '');
@@ -109,6 +104,7 @@ function BannerModal({ ubicacion, banner, onClose, onSaved }: BannerModalProps):
     const payload: CrearBannerPayload = {
       ubicacion,
       titulo: titulo.trim(),
+      etiqueta: etiqueta.trim() || null,
       subtitulo: subtitulo.trim() || null,
       cta_texto: ctaTexto.trim() || null,
       cta_url: ctaUrl.trim() || null,
@@ -162,6 +158,21 @@ function BannerModal({ ubicacion, banner, onClose, onSaved }: BannerModalProps):
           <label htmlFor="banner-titulo" className={labelClass}>Título</label>
           <Input id="banner-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Nueva temporada" />
         </div>
+
+        {ubicacion !== 'TICKER' && (
+          <div>
+            <label htmlFor="banner-etiqueta" className={labelClass}>Sobre-título (opcional)</label>
+            <Input
+              id="banner-etiqueta"
+              value={etiqueta}
+              onChange={(e) => setEtiqueta(e.target.value)}
+              placeholder="Temporada"
+            />
+            <p className="mt-xs text-xs text-ink-mute">
+              Línea pequeña que se muestra encima del título. Máximo 80 caracteres.
+            </p>
+          </div>
+        )}
 
         <div>
           <label htmlFor="banner-subtitulo" className={labelClass}>Subtítulo (opcional)</label>
@@ -510,17 +521,9 @@ function BannerTab({ ubicacion }: BannerTabProps): React.ReactElement {
 
 // ─── Pestaña de franja de confianza ───────────────────────────────────────────
 
-function esFranja(valor: unknown): valor is FranjaConfianza {
-  return typeof valor === 'object' && valor !== null && 'titulo' in valor && 'texto' in valor;
-}
-
-function leerFranja(config: SiteConfigItem[]): FranjaConfianza[] {
-  const item = config.find((c) => c.clave === 'franja_confianza');
-  if (item && Array.isArray(item.valor)) {
-    const items = item.valor.filter(esFranja).map((v) => ({ titulo: String(v.titulo), texto: String(v.texto) }));
-    if (items.length > 0) return items;
-  }
-  return FRANJA_DEFECTO;
+function leerFranjaConfig(config: SiteConfigItem[]): FranjaConfianza[] {
+  const items = leerFranja(config.find((c) => c.clave === 'franja_confianza')?.valor);
+  return items.length > 0 ? items : FRANJA_DEFECTO;
 }
 
 function ConfianzaTab(): React.ReactElement {
@@ -541,7 +544,7 @@ function ConfianzaTab(): React.ReactElement {
           setStatus('error');
           return;
         }
-        setItems(leerFranja(json.data));
+        setItems(leerFranjaConfig(json.data));
         setStatus('ready');
       })
       .catch(() => {

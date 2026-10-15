@@ -6,6 +6,8 @@ export interface BannerItem {
   id: string;
   ubicacion: BannerUbicacion;
   titulo: string;
+  /** Sobre-título (eyebrow) sobre el titular. */
+  etiqueta: string | null;
   subtitulo: string | null;
   cta_texto: string | null;
   cta_url: string | null;
@@ -21,6 +23,7 @@ export interface BannerItem {
 export interface CrearBannerPayload {
   ubicacion: BannerUbicacion;
   titulo: string;
+  etiqueta?: string | null;
   subtitulo?: string | null;
   cta_texto?: string | null;
   cta_url?: string | null;

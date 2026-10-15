@@ -13,9 +13,16 @@ const textoCorto = z.preprocess(
   z.string().trim().max(255).nullable()
 );
 
+/** Sobre-título del banner (eyebrow), más corto que el subtítulo. */
+const textoEtiqueta = z.preprocess(
+  (value) => (value === '' || value === undefined ? null : value),
+  z.string().trim().max(80).nullable()
+);
+
 export const crearBannerSchema = z.object({
   ubicacion: z.enum(['HERO', 'TICKER', 'BANDA_EDITORIAL']),
   titulo: z.string().trim().min(1, { message: 'El título es obligatorio' }).max(150),
+  etiqueta: textoEtiqueta.optional(),
   subtitulo: textoCorto.optional(),
   cta_texto: z
     .preprocess((v) => (v === '' || v === undefined ? null : v), z.string().trim().max(40).nullable())
@@ -34,6 +41,7 @@ export const actualizarBannerSchema = z
   .object({
     ubicacion: z.enum(['HERO', 'TICKER', 'BANDA_EDITORIAL']).optional(),
     titulo: z.string().trim().min(1).max(150).optional(),
+    etiqueta: textoEtiqueta.optional(),
     subtitulo: textoCorto.optional(),
     cta_texto: z
       .preprocess((v) => (v === '' || v === undefined ? null : v), z.string().trim().max(40).nullable())

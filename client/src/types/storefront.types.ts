@@ -52,6 +52,8 @@ export interface BannerPublico {
   id: string;
   ubicacion: 'HERO' | 'TICKER' | 'BANDA_EDITORIAL';
   titulo: string;
+  /** Sobre-título (eyebrow) sobre el titular. */
+  etiqueta: string | null;
   subtitulo: string | null;
   cta_texto: string | null;
   cta_url: string | null;

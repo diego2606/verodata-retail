@@ -47,6 +47,7 @@ export const bannerService = {
     const data: CrearBannerData = {
       ubicacion: input.ubicacion,
       titulo: input.titulo,
+      etiqueta: limpiar(input.etiqueta),
       subtitulo: limpiar(input.subtitulo),
       cta_texto: limpiar(input.cta_texto),
       cta_url: limpiar(input.cta_url),
@@ -71,6 +72,7 @@ export const bannerService = {
     const data: ActualizarBannerData = {};
     if (input.ubicacion !== undefined) data.ubicacion = input.ubicacion;
     if (input.titulo !== undefined) data.titulo = input.titulo;
+    if (input.etiqueta !== undefined) data.etiqueta = limpiar(input.etiqueta);
     if (input.subtitulo !== undefined) data.subtitulo = limpiar(input.subtitulo);
     if (input.cta_texto !== undefined) data.cta_texto = limpiar(input.cta_texto);
     if (input.cta_url !== undefined) data.cta_url = limpiar(input.cta_url);
