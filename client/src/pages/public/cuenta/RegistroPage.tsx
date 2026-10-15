@@ -88,7 +88,7 @@ export function RegistroPage(): React.ReactElement {
         },
         true
       );
-      navigate('/cuenta/perfil', { replace: true });
+      void navigate('/cuenta/perfil', { replace: true });
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'No se pudo completar el registro');
     } finally {

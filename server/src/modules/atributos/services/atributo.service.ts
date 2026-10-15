@@ -26,12 +26,17 @@ function fallo(code: string, message: string, details: unknown = null): ApiFailu
 
 /** Código del atributo derivado del nombre: "Talla Calzado" → "TALLA_CALZADO". */
 function codigoDesdeNombre(nombre: string): string {
-  return nombre
+  const codigo = nombre
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
+    .replace(/[^A-Z0-9]+/g, '_');
+  // Sin regex de bordes (S8786): se descartan los segmentos vacíos que dejan
+  // los guiones bajos iniciales, finales o consecutivos.
+  return codigo
+    .split('_')
+    .filter((parte) => parte.length > 0)
+    .join('_')
     .slice(0, 40);
 }
 

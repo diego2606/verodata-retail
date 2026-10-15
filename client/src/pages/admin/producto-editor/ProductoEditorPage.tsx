@@ -460,13 +460,15 @@ export function ProductoEditorPage({ modo }: ProductoEditorPageProps): React.Rea
         <aside className="space-y-lg">
           <section className="rounded-sm border border-hairline bg-canvas p-lg">
             <h2 className="mb-md text-heading-md font-medium text-ink">Estado</h2>
-            <label className="flex items-center justify-between gap-sm">
-              <span className="text-sm text-ink">Visible en la tienda</span>
+            <div className="flex items-center justify-between gap-sm">
+              <span id="estado-producto-label" className="text-sm text-ink">
+                Visible en la tienda
+              </span>
               <button
                 type="button"
                 role="switch"
                 aria-checked={modeloDraft.activo}
-                aria-label="Activar o desactivar el producto"
+                aria-labelledby="estado-producto-label"
                 onClick={() => setCampo('activo', !modeloDraft.activo)}
                 className={cn(
                   'relative h-5 w-9 shrink-0 rounded-full transition-colors duration-150',
@@ -481,7 +483,7 @@ export function ProductoEditorPage({ modo }: ProductoEditorPageProps): React.Rea
                   )}
                 />
               </button>
-            </label>
+            </div>
           </section>
 
           <section className="rounded-sm border border-hairline bg-canvas p-lg">

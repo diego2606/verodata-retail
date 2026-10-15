@@ -40,7 +40,7 @@ export function OauthCallbackPage(): React.ReactElement {
   }, [login]);
 
   useEffect(() => {
-    if (isAuthenticated && !error) navigate('/cuenta/perfil', { replace: true });
+    if (isAuthenticated && !error) void navigate('/cuenta/perfil', { replace: true });
   }, [isAuthenticated, error, navigate]);
 
   if (!error) {
@@ -60,7 +60,7 @@ export function OauthCallbackPage(): React.ReactElement {
           className={BOTON_STORE}
           onClick={() => {
             abrirLogin();
-            navigate('/', { replace: true });
+            void navigate('/', { replace: true });
           }}
         >
           Probar con correo

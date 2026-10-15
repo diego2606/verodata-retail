@@ -39,7 +39,7 @@ export function RestablecerPage(): React.ReactElement {
         setError(json.error.message);
         return;
       }
-      navigate('/', { replace: true });
+      void navigate('/', { replace: true });
       abrirLogin();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'No se pudo restablecer la contraseña');

@@ -755,7 +755,7 @@ export function PerfilPage(): React.ReactElement {
 
   const cerrarSesion = (): void => {
     logout();
-    navigate('/');
+    void navigate('/');
   };
 
   return (
