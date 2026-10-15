@@ -1,7 +1,7 @@
 // Cliente Fetch centralizado — adjunta Authorization: Bearer <token> automáticamente
 // y normaliza la respuesta al envelope de la API (03-guidelines §3).
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+export const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 const TOKEN_KEY = 'verodata_token';
 
 export interface ApiError {

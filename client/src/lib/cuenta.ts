@@ -1,4 +1,4 @@
-import { apiClient, type ApiResponse } from './apiClient';
+import { apiClient, API_BASE, type ApiResponse } from './apiClient';
 import type {
   ActualizarPerfilPayload,
   CambiarPasswordPayload,
@@ -64,3 +64,8 @@ export const cuentaApi = {
     return apiClient.delete<{ id: string }>(`/api/v1/me/direcciones/${id}`);
   },
 };
+
+/** URL del backend que inicia el flujo OAuth con Google (redirección de página completa). */
+export function urlGoogleOAuth(): string {
+  return `${API_BASE}/api/v1/auth/google`;
+}

@@ -15,6 +15,7 @@ import { LoginModalProvider } from './context/LoginModalContext';
 import { RegistroPage } from './pages/public/cuenta/RegistroPage';
 import { RecuperarPage } from './pages/public/cuenta/RecuperarPage';
 import { RestablecerPage } from './pages/public/cuenta/RestablecerPage';
+import { OauthCallbackPage } from './pages/public/cuenta/OauthCallbackPage';
 import { PerfilPage } from './pages/public/cuenta/PerfilPage';
 import { DashboardPage } from './pages/admin/DashboardPage';
 import { UsersPage } from './pages/admin/UsersPage';
@@ -41,6 +42,7 @@ function App(): React.ReactElement {
             <Route path="/cuenta/registro" element={<RegistroPage />} />
             <Route path="/cuenta/recuperar" element={<RecuperarPage />} />
             <Route path="/cuenta/restablecer" element={<RestablecerPage />} />
+            <Route path="/cuenta/oauth" element={<OauthCallbackPage />} />
 
             {/* Perfil — requiere sesión */}
             <Route element={<ClienteRoute />}>
