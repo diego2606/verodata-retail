@@ -27,7 +27,7 @@ export function EstadoError({ mensaje, onReintentar }: EstadoErrorProps): React.
         <p className="text-base font-semibold text-store-ink">No pudimos cargar la información</p>
         <p className="text-sm text-store-ink-soft">{mensaje}</p>
       </div>
-      <Button variant="secondary" onClick={onReintentar}>Reintentar</Button>
+      <Button variant="secondary" onClick={onReintentar} className="rounded-md">Reintentar</Button>
     </div>
   );
 }
@@ -48,7 +48,7 @@ export function EstadoVacio({ titulo, descripcion, labelAccion, onAccion }: Esta
         <p className="text-sm text-store-ink-soft">{descripcion}</p>
       </div>
       {labelAccion && onAccion && (
-        <Button variant="secondary" onClick={onAccion}>{labelAccion}</Button>
+        <Button variant="secondary" onClick={onAccion} className="rounded-md">{labelAccion}</Button>
       )}
     </div>
   );

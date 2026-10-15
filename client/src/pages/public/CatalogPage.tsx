@@ -143,11 +143,11 @@ export function CatalogPage(): React.ReactElement {
             className="border-store-line font-mono text-store-ink focus:ring-store-accent"
           />
         </div>
-        <Button type="submit" variant="primary" className="bg-store-ink text-white hover:bg-store-ink/90">
+        <Button type="submit" variant="primary" className="rounded-md bg-store-ink text-white hover:bg-store-ink/90">
           Aplicar filtros
         </Button>
         {hayFiltros && (
-          <Button type="button" variant="ghost" onClick={limpiar} className="text-store-ink-soft hover:bg-store-canvas">
+          <Button type="button" variant="ghost" onClick={limpiar} className="rounded-md text-store-ink-soft hover:bg-store-canvas">
             Limpiar
           </Button>
         )}
@@ -185,6 +185,7 @@ export function CatalogPage(): React.ReactElement {
             <div className="flex items-center justify-center gap-md pt-md">
               <Button
                 variant="secondary"
+                className="rounded-md"
                 disabled={resultado.pagina <= 1}
                 onClick={() => irPagina(resultado.pagina - 1)}
               >
@@ -195,6 +196,7 @@ export function CatalogPage(): React.ReactElement {
               </span>
               <Button
                 variant="secondary"
+                className="rounded-md"
                 disabled={resultado.pagina >= resultado.total_paginas}
                 onClick={() => irPagina(resultado.pagina + 1)}
               >

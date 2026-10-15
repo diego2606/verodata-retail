@@ -136,7 +136,7 @@ function Detalle({ producto, variantes }: DetalleProps): React.ReactElement {
                 variant="primary"
                 disabled
                 title="El carrito de compras llegará en un próximo sprint (HU020)"
-                className="h-11 w-full bg-store-ink text-white hover:bg-store-ink/90 md:w-auto md:px-xxl"
+                className="h-11 w-full rounded-md bg-store-ink text-white hover:bg-store-ink/90 md:w-auto md:px-xxl"
               >
                 Agregar a la bolsa
               </Button>
@@ -145,7 +145,7 @@ function Detalle({ producto, variantes }: DetalleProps): React.ReactElement {
               </span>
             </>
           ) : (
-            <Button variant="secondary" disabled className="h-11 w-full md:w-auto md:px-xxl">
+            <Button variant="secondary" disabled className="h-11 w-full rounded-md md:w-auto md:px-xxl">
               Agotado
             </Button>
           )}
