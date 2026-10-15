@@ -27,6 +27,9 @@ import { apiClient, ApiClientError } from '../../lib/apiClient';
 import { AdjustStockModal } from '../../components/inventory/AdjustStockModal';
 import { MatrizVariantesModal } from '../../components/products/MatrizVariantesModal';
 import { ProductImagesGallery } from '../../components/products/ProductImagesGallery';
+import { NuevoValorModal } from '../../components/products/NuevoValorModal';
+import { atributosApi } from '../../lib/atributosApi';
+import type { TipoAtributo } from '../../types/atributo.types';
 import { generarSkuSugerido, generarSkuEstructurado } from '../../lib/sku';
 import { opcionesCategoriaJerarquicas, rutaCategoria } from '../../lib/categorias';
 import type { CategoriaItem } from '../../types/category.types';
@@ -262,6 +265,7 @@ function AtributoInput({
   onPick,
   requerido,
   deshabilitado,
+  atributo,
 }: {
   id: string;
   label: string;
@@ -271,13 +275,28 @@ function AtributoInput({
   onPick?: (value: string) => void;
   requerido?: boolean;
   deshabilitado?: boolean;
+  /** Atributo del maestro (para crear valores en caliente). */
+  atributo?: { id: number; nombre: string; tipo: TipoAtributo };
 }): React.ReactElement {
+  const [nuevoAbierto, setNuevoAbierto] = useState(false);
+
   return (
     <div>
-      <label htmlFor={id} className={labelClass}>
-        {label}
-        {requerido && <span className="text-retail-red"> *</span>}
-      </label>
+      <div className="flex items-center justify-between gap-sm">
+        <label htmlFor={id} className={labelClass}>
+          {label}
+          {requerido && <span className="text-retail-red"> *</span>}
+        </label>
+        {atributo && !deshabilitado && (
+          <button
+            type="button"
+            onClick={() => setNuevoAbierto(true)}
+            className="text-xs font-medium text-primary-ink hover:underline"
+          >
+            + Nuevo valor
+          </button>
+        )}
+      </div>
       <Input id={id} placeholder={placeholder} disabled={deshabilitado} {...registration} />
       {!deshabilitado && sugerencias && sugerencias.length > 0 && onPick && (
         <div className="mt-xs flex flex-wrap gap-xs">
@@ -294,8 +313,41 @@ function AtributoInput({
           ))}
         </div>
       )}
+
+      {nuevoAbierto && atributo && (
+        <NuevoValorModal
+          atributoId={atributo.id}
+          atributoNombre={atributo.nombre}
+          tipo={atributo.tipo}
+          onClose={() => setNuevoAbierto(false)}
+          onCreated={valor => {
+            setNuevoAbierto(false);
+            onPick?.(valor);
+          }}
+        />
+      )}
     </div>
   );
+}
+
+/** Maestro de atributos indexado por código (para crear valores en caliente). */
+function useMaestroAtributos(): Map<string, { id: number; nombre: string; tipo: TipoAtributo }> {
+  const [mapa, setMapa] = useState(new Map<string, { id: number; nombre: string; tipo: TipoAtributo }>());
+  useEffect(() => {
+    let active = true;
+    atributosApi
+      .listar()
+      .then(json => {
+        if (active && json.success) {
+          setMapa(new Map(json.data.map(a => [a.codigo, { id: a.id, nombre: a.nombre, tipo: a.tipo }])));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+  return mapa;
 }
 
 // ─── Presentación ─────────────────────────────────────────────────────────────
@@ -485,6 +537,7 @@ interface CreateProductModalProps {
 }
 
 function CreateProductModal({ onClose, onCreated }: CreateProductModalProps): React.ReactElement {
+  const maestro = useMaestroAtributos();
   const [serverError, setServerError] = useState<string | null>(null);
   const [categorias, setCategorias] = useState<CategoriaItem[]>([]);
   const [categoriasStatus, setCategoriasStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -826,6 +879,7 @@ function CreateProductModal({ onClose, onCreated }: CreateProductModalProps): Re
                 sugerencias={categoriaSeleccionada?.valores_sugeridos?.[campo.key]}
                 onPick={valor => setValue(campo.form, valor, { shouldValidate: true })}
                 requerido={usaPlantilla && requeridosSku.includes(campo.key)}
+                atributo={maestro.get(campo.key)}
               />
             ))}
           </div>
@@ -853,6 +907,7 @@ interface EditProductModalProps {
 }
 
 function EditProductModal({ producto, onClose, onUpdated }: EditProductModalProps): React.ReactElement {
+  const maestro = useMaestroAtributos();
   const [serverError, setServerError] = useState<string | null>(null);
   const [categorias, setCategorias] = useState<CategoriaItem[]>([]);
   const [categoriasStatus, setCategoriasStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -1104,6 +1159,7 @@ function EditProductModal({ producto, onClose, onUpdated }: EditProductModalProp
                 onPick={valor => setValue(campo.form, valor, { shouldValidate: true })}
                 requerido={usaPlantilla && requeridosSku.includes(campo.key)}
                 deshabilitado={usaPlantilla && requeridosSku.includes(campo.key)}
+                atributo={maestro.get(campo.key)}
               />
             ))}
           </div>
