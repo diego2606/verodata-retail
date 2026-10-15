@@ -110,4 +110,60 @@ export const authRepository = {
       [usuarioId, passwordHash]
     );
   },
+
+  /** Usuario vinculado a un proveedor OAuth (por su id en el proveedor). */
+  async buscarPorOAuth(proveedor: string, providerUserId: string): Promise<string | null> {
+    const result = await pool.query<{ usuario_id: string }>(
+      `SELECT usuario_id FROM usuarios_oauth
+       WHERE proveedor = $1 AND provider_user_id = $2
+       LIMIT 1`,
+      [proveedor, providerUserId]
+    );
+    return result.rows[0]?.usuario_id ?? null;
+  },
+
+  async vincularOAuth(usuarioId: string, proveedor: string, providerUserId: string): Promise<void> {
+    await pool.query(
+      `INSERT INTO usuarios_oauth (usuario_id, proveedor, provider_user_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (proveedor, provider_user_id) DO NOTHING`,
+      [usuarioId, proveedor, providerUserId]
+    );
+  },
+
+  /** Crea un usuario social (sin contraseña) + datos_personales básicos. */
+  async crearUsuarioSocial(data: {
+    email: string;
+    nombres: string;
+    apellidos: string;
+    rolId: number;
+  }): Promise<string> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const userResult = await client.query<{ id: string }>(
+        `INSERT INTO usuarios (email, password_hash, rol_id, intentos_fallidos, bloqueado)
+         VALUES ($1, NULL, $2, 0, FALSE)
+         RETURNING id`,
+        [data.email, data.rolId]
+      );
+      const usuarioId = userResult.rows[0].id;
+
+      await client.query(
+        `INSERT INTO datos_personales
+           (usuario_id, tipo_documento, numero_documento, nombres, apellidos, telefono)
+         VALUES ($1, NULL, NULL, $2, $3, NULL)`,
+        [usuarioId, data.nombres, data.apellidos]
+      );
+
+      await client.query('COMMIT');
+      return usuarioId;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
 };

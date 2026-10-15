@@ -6,6 +6,7 @@ import {
   restablecerPasswordSchema,
 } from '../schemas/auth.schemas';
 import { authService } from '../services/auth.service';
+import { googleConfigurado, oauthService } from '../services/oauth.service';
 import { ApiFailure } from '../../../shared/types/api.types';
 
 function validationError(details: unknown): ApiFailure {
@@ -98,6 +99,45 @@ export const authController = {
     } catch (error) {
       console.error('[AuthController] restablecer error:', error);
       res.status(500).json(internalError());
+    }
+  },
+
+  /** GET /api/v1/auth/google — inicia el flujo OAuth (redirige a Google). */
+  async googleRedirect(_req: Request, res: Response): Promise<void> {
+    try {
+      if (!googleConfigurado()) {
+        res.status(503).json({
+          success: false,
+          error: {
+            code: 'OAUTH_NOT_CONFIGURED',
+            message: 'El acceso con Google no está configurado en el servidor',
+            details: null,
+          },
+        });
+        return;
+      }
+      res.redirect(oauthService.urlDeAutorizacion());
+    } catch (error) {
+      console.error('[AuthController] googleRedirect error:', error);
+      res.status(500).json(internalError());
+    }
+  },
+
+  /** GET /api/v1/auth/google/callback — Google redirige aquí con el code. */
+  async googleCallback(req: Request, res: Response): Promise<void> {
+    const code = typeof req.query.code === 'string' ? req.query.code : '';
+    const state = typeof req.query.state === 'string' ? req.query.state : '';
+    try {
+      if (!code || !state) {
+        res.redirect(oauthService.urlDeError('MISSING_CODE'));
+        return;
+      }
+      const { token, usuario } = await oauthService.callback(code, state);
+      res.redirect(oauthService.urlDeExito(usuario, token));
+    } catch (error) {
+      console.error('[AuthController] googleCallback error:', error);
+      const codigo = error instanceof Error ? error.message : 'OAUTH_ERROR';
+      res.redirect(oauthService.urlDeError(codigo));
     }
   },
 };
