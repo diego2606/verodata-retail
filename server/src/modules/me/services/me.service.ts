@@ -2,9 +2,19 @@ import bcrypt from 'bcrypt';
 import { meRepository, PerfilRow } from '../repositories/me.repository';
 import { userRepository } from '../../users/repositories/user.repository';
 import { ActualizarPerfilInput, CambiarPasswordInput } from '../schemas/me.schemas';
+import { perfilCompleto } from '../../../shared/utils/perfil';
 import { ApiFailure, ApiResponse } from '../../../shared/types/api.types';
 
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS ?? 10);
+
+/** Perfil + bandera `perfil_completo` (candado del checkout, HU014). */
+export interface PerfilResponse extends PerfilRow {
+  perfil_completo: boolean;
+}
+
+function conEstadoCompleto(perfil: PerfilRow): PerfilResponse {
+  return { ...perfil, perfil_completo: perfilCompleto(perfil) };
+}
 
 function fallo(code: string, message: string, details: unknown = null): ApiFailure {
   return { success: false, error: { code, message, details } };
@@ -12,13 +22,13 @@ function fallo(code: string, message: string, details: unknown = null): ApiFailu
 
 /** Perfil del usuario autenticado (cliente o interno). */
 export const meService = {
-  async obtener(usuarioId: string): Promise<ApiResponse<PerfilRow>> {
+  async obtener(usuarioId: string): Promise<ApiResponse<PerfilResponse>> {
     const perfil = await meRepository.obtenerPerfil(usuarioId);
     if (!perfil) return fallo('RESOURCE_NOT_FOUND', 'La cuenta no existe');
-    return { success: true, message: 'Perfil obtenido correctamente', data: perfil };
+    return { success: true, message: 'Perfil obtenido correctamente', data: conEstadoCompleto(perfil) };
   },
 
-  async actualizar(usuarioId: string, input: ActualizarPerfilInput): Promise<ApiResponse<PerfilRow>> {
+  async actualizar(usuarioId: string, input: ActualizarPerfilInput): Promise<ApiResponse<PerfilResponse>> {
     if (input.tipo_documento && input.numero_documento) {
       const duplicado = await userRepository.existeDocumentoOtro(
         input.tipo_documento,
@@ -34,7 +44,7 @@ export const meService = {
 
     const perfil = await meRepository.obtenerPerfil(usuarioId);
     if (!perfil) return fallo('INTERNAL_ERROR', 'No se pudo recuperar el perfil');
-    return { success: true, message: 'Perfil actualizado correctamente', data: perfil };
+    return { success: true, message: 'Perfil actualizado correctamente', data: conEstadoCompleto(perfil) };
   },
 
   async cambiarPassword(usuarioId: string, input: CambiarPasswordInput): Promise<ApiResponse<null>> {

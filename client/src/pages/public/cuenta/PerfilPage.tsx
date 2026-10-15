@@ -495,6 +495,12 @@ export function PerfilPage(): React.ReactElement {
 
       {perfil.estado.status === 'success' && (
         <div className="grid gap-lg">
+          {!perfil.estado.data.perfil_completo && (
+            <Alerta tipo="info">
+              Te falta registrar tu <strong>documento de identidad</strong> para poder comprar. Complétalo en
+              “Datos personales”.
+            </Alerta>
+          )}
           <DatosPersonales perfil={perfil.estado.data} />
           <Seguridad />
           <MisDirecciones />

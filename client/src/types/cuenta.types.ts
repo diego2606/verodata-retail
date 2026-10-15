@@ -33,6 +33,8 @@ export interface PerfilCliente {
   apellidos: string | null;
   telefono: string | null;
   creado_en: string;
+  /** Candado del checkout: true cuando tiene documento de identidad. */
+  perfil_completo: boolean;
 }
 
 export interface ActualizarPerfilPayload {

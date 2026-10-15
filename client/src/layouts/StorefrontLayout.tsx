@@ -4,6 +4,7 @@ import { ChevronDown, MapPin, Menu, Search, ShoppingBag, User } from 'lucide-rea
 import { ColoresProvider } from '../context/ColoresContext';
 import { useAuth } from '../context/AuthContext';
 import { useLoginModal } from '../context/LoginModalContext';
+import { PerfilIncompletoBanner } from '../components/storefront/PerfilIncompletoBanner';
 
 const CONTENEDOR = 'mx-auto w-full max-w-[1200px] px-lg';
 
@@ -125,6 +126,8 @@ export function StorefrontLayout(): React.ReactElement {
           </div>
         </div>
       </header>
+
+      <PerfilIncompletoBanner />
 
       <main className="flex-1">
         <ColoresProvider>
