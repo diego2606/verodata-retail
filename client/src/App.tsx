@@ -4,8 +4,12 @@ import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './router/ProtectedRoute';
 import { RoleRoute } from './router/RoleRoute';
 import { BackofficeLayout } from './layouts/BackofficeLayout';
+import { StorefrontLayout } from './layouts/StorefrontLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { ManualPage } from './pages/public/ManualPage';
+import { StorefrontHomePage } from './pages/public/StorefrontHomePage';
+import { CatalogPage } from './pages/public/CatalogPage';
+import { ProductDetailPage } from './pages/public/ProductDetailPage';
 import { DashboardPage } from './pages/admin/DashboardPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { CategoriesPage } from './pages/admin/CategoriesPage';
@@ -19,10 +23,14 @@ function App(): React.ReactElement {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Ruta raíz → redirige a /login */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          {/* Storefront público (HU013) */}
+          <Route element={<StorefrontLayout />}>
+            <Route path="/" element={<StorefrontHomePage />} />
+            <Route path="/catalogo" element={<CatalogPage />} />
+            <Route path="/producto/:id" element={<ProductDetailPage />} />
+          </Route>
 
-          {/* Rutas públicas */}
+          {/* Rutas públicas de acceso */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/documentacion" element={<ManualPage />} />
 
@@ -49,7 +57,7 @@ function App(): React.ReactElement {
                 element={
                   <ComingSoonPage
                     title="Pedidos"
-                    description="Gestión de pedidos y estados (HU018–HU022) estarán disponibles próximamente."
+                    description="La gestión de pedidos y estados estará disponible próximamente."
                   />
                 }
               />
@@ -59,8 +67,8 @@ function App(): React.ReactElement {
             </Route>
           </Route>
 
-          {/* 404 — cualquier ruta no definida */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          {/* 404 — cualquier ruta no definida vuelve al Storefront */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

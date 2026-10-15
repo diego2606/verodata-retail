@@ -36,6 +36,16 @@ export default {
         'retail-red': 'rgb(229 62 62 / <alpha-value>)',
         'retail-orange': '#dd6b20',
         'retail-gold': '#d69e2e',
+        // Storefront retail design system (skills/ui-storefront-retail.md)
+        'store-canvas': '#f8fafc',
+        'store-surface': '#ffffff',
+        'store-ink': '#0f172a',
+        'store-ink-soft': '#475569',
+        'store-ink-mute': '#94a3b8',
+        'store-line': '#e2e8f0',
+        'store-accent': '#2563eb',
+        'store-offer': '#dc2626',
+        'store-ok': '#16a34a',
       },
       fontFamily: {
         sans: ["'Geist Variable'", "'Helvetica Neue'", 'Helvetica', 'Arial', 'sans-serif'],
