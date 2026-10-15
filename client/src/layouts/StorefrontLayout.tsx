@@ -5,6 +5,7 @@ import { ColoresProvider } from '../context/ColoresContext';
 import { useAuth } from '../context/AuthContext';
 import { useLoginModal } from '../context/LoginModalContext';
 import { PerfilIncompletoBanner } from '../components/storefront/PerfilIncompletoBanner';
+import { MegaMenu } from '../components/storefront/MegaMenu';
 import { CONTENEDOR_TIENDA } from '../lib/utils';
 
 const CONTENEDOR = CONTENEDOR_TIENDA;
@@ -18,6 +19,7 @@ export function StorefrontLayout(): React.ReactElement {
   const { isAuthenticated, usuario, logout } = useAuth();
   const { abrirLogin } = useLoginModal();
   const [busqueda, setBusqueda] = useState('');
+  const [menuAbierto, setMenuAbierto] = useState(false);
 
   function buscar(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -116,10 +118,16 @@ export function StorefrontLayout(): React.ReactElement {
         {/* Nivel 3 — Sub-bar de ubicación */}
         <div className="border-t border-store-line bg-store-surface">
           <div className={`${CONTENEDOR} flex h-10 items-center justify-between text-sm`}>
-            <Link to="/catalogo" className="flex items-center gap-sm font-medium text-store-ink">
+            <button
+              type="button"
+              onClick={() => setMenuAbierto((v) => !v)}
+              aria-expanded={menuAbierto}
+              aria-haspopup="true"
+              className="flex items-center gap-sm font-medium text-store-ink"
+            >
               <Menu size={18} aria-hidden="true" />
               Todas las categorías
-            </Link>
+            </button>
             <button
               type="button"
               className="flex items-center gap-sm text-store-ink-soft hover:text-store-ink"
@@ -131,7 +139,17 @@ export function StorefrontLayout(): React.ReactElement {
             </button>
           </div>
         </div>
+
+        {menuAbierto && <MegaMenu onClose={() => setMenuAbierto(false)} />}
       </header>
+
+      {menuAbierto && (
+        <div
+          className="fixed inset-0 z-20 bg-ink/20"
+          onClick={() => setMenuAbierto(false)}
+          aria-hidden="true"
+        />
+      )}
 
       <PerfilIncompletoBanner />
 
