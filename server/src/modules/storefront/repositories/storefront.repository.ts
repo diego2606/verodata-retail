@@ -163,10 +163,18 @@ export const storefrontRepository = {
     return result.rows;
   },
 
-  /** Colores activos (nombre + hex) para los swatches de la tienda. */
+  /**
+   * Colores activos (nombre + hex) para los swatches de la tienda (HU036).
+   * La fuente es el maestro de atributos (`atributo_valores` con código COLOR);
+   * la antigua tabla `colores` quedó obsoleta y se eliminó en la migración 020.
+   */
   async listarColoresActivos(): Promise<ColorFila[]> {
     const result = await pool.query<ColorFila>(
-      `SELECT nombre, slug, hex FROM colores WHERE activo = TRUE ORDER BY nombre ASC`
+      `SELECT v.valor AS nombre, v.slug, v.hex
+         FROM atributo_valores v
+         INNER JOIN atributos a ON a.id = v.atributo_id
+        WHERE a.codigo = 'COLOR' AND a.activo = TRUE AND v.activo = TRUE
+        ORDER BY v.valor ASC`
     );
     return result.rows;
   },

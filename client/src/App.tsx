@@ -26,7 +26,6 @@ import { InventoryPage } from './pages/admin/InventoryPage';
 import { ReposicionesPage } from './pages/admin/reposiciones/ReposicionesPage';
 import { NuevaReposicionPage } from './pages/admin/reposiciones/NuevaReposicionPage';
 import { DetalleReposicionPage } from './pages/admin/reposiciones/DetalleReposicionPage';
-import { ColorsPage } from './pages/admin/ColorsPage';
 import { AttributesPage } from './pages/admin/AttributesPage';
 import { ContentPage } from './pages/admin/ContentPage';
 import { ComingSoonPage } from './pages/admin/ComingSoonPage';
@@ -79,7 +78,6 @@ function App(): React.ReactElement {
               <Route path="/admin/reposiciones/nueva" element={<NuevaReposicionPage />} />
               <Route path="/admin/reposiciones/:id" element={<DetalleReposicionPage />} />
               <Route path="/admin/inventory" element={<InventoryPage />} />
-              <Route path="/admin/colors" element={<ColorsPage />} />
               <Route path="/admin/attributes" element={<AttributesPage />} />
               <Route path="/admin/contenido" element={<ContentPage />} />
 
