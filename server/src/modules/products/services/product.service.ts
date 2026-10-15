@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import {
   productRepository,
   ProductoRow,
@@ -16,8 +15,9 @@ import {
 } from '../schemas/product.schemas';
 import { categoryRepository } from '../../categories/repositories/category.repository';
 import { resolverAtributosEfectivos } from '../../../shared/utils/atributosEfectivos';
+import { normalizarAtributos, normalizarValorAtributo } from '../../../shared/utils/atributosVariante';
 import { generarSkuEstructurado } from '../../../shared/utils/sku';
-import { supabaseConfigurado, subirImagenSupabase } from '../../../shared/utils/supabaseStorage';
+import { resolverUrlImagen } from '../../../shared/utils/imagenUpload';
 import { ApiFailure, ApiResponse } from '../../../shared/types/api.types';
 
 function fallo(code: string, message: string, details: unknown = null): ApiFailure {
@@ -28,27 +28,13 @@ function fallo(code: string, message: string, details: unknown = null): ApiFailu
  * HU026: normaliza el valor de un atributo de variante a una forma determinista
  * (trim + espacios colapsados + capitalización por palabra) para evitar que
  * "Negro", "negro" y "NEGRO" convivan como variantes distintas.
+ * Reexportado desde `shared/utils/atributosVariante` (fuente única).
  */
-export function normalizarValorAtributo(valor: string): string {
-  return valor
-    .trim()
-    .replace(/\s+/g, ' ')
-    .slice(0, 100)
-    .toLowerCase()
-    .replace(/(^|\s)(\S)/g, (_match, sep: string, caracter: string) => sep + caracter.toUpperCase());
-}
+export { normalizarValorAtributo };
 
 /** Deja solo los atributos de variante conocidos, sin valores vacíos (HU026). */
-function normalizarAtributos(input?: Record<string, string>): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (!input) return out;
-  for (const key of ATRIBUTOS_VARIANTE_KEYS) {
-    const raw = input[key]?.trim();
-    if (!raw) continue;
-    const value = normalizarValorAtributo(raw);
-    if (value) out[key] = value;
-  }
-  return out;
+function normalizarAtributosVariante(input?: Record<string, string>): Record<string, string> {
+  return normalizarAtributos(input, ATRIBUTOS_VARIANTE_KEYS);
 }
 
 function normalizarModelo(modelo?: string | null): string | null {
@@ -67,7 +53,7 @@ function aCrearProductoData(input: CrearProductoInput): CrearProductoData {
     precio_oferta: input.precio_oferta ?? null,
     imagen_url: input.imagen_url ? input.imagen_url : null,
     modelo: normalizarModelo(input.modelo),
-    atributos: normalizarAtributos(input.atributos),
+    atributos: normalizarAtributosVariante(input.atributos),
     stock_inicial: input.stock_inicial ?? 0,
     stock_minimo: input.stock_minimo ?? 5,
   };
@@ -117,14 +103,6 @@ function resolverSku(
 }
 
 /** Decodifica un data URL base64 (HU033). */
-function parseDataUrl(data: string): { buffer: Buffer; contentType: string; ext: string } | null {
-  const match = /^data:([^;]+);base64,(.+)$/s.exec(data);
-  if (!match) return null;
-  const contentType = match[1];
-  const buffer = Buffer.from(match[2], 'base64');
-  const ext = (contentType.split('/')[1] ?? 'jpg').replace('jpeg', 'jpg');
-  return { buffer, contentType, ext };
-}
 
 export const productService = {
   /** HU007: listado del catálogo con filtros (incluye modelo, atributos y stock). */
@@ -309,7 +287,7 @@ export const productService = {
 
     const modelo = input.modelo !== undefined ? normalizarModelo(input.modelo) : actual.modelo;
     const atributos =
-      input.atributos !== undefined ? normalizarAtributos(input.atributos) : actual.atributos;
+      input.atributos !== undefined ? normalizarAtributosVariante(input.atributos) : actual.atributos;
 
     if (input.atributos !== undefined) {
       const invalidos = atributosInvalidos(atributos, permitidos);
@@ -388,7 +366,7 @@ export const productService = {
     if (!producto) {
       return fallo('RESOURCE_NOT_FOUND', 'El producto con el ID especificado no existe');
     }
-    const imagenes = await productRepository.listarImagenes(productoId);
+    const imagenes = await productRepository.listarImagenes({ columna: 'producto_id', id: productoId });
     return { success: true, message: 'Imágenes obtenidas correctamente', data: imagenes };
   },
 
@@ -402,36 +380,14 @@ export const productService = {
       return fallo('RESOURCE_NOT_FOUND', 'El producto con el ID especificado no existe');
     }
 
-    let url = input.url ?? '';
-    if (!url && input.data) {
-      if (!supabaseConfigurado()) {
-        return fallo(
-          'STORAGE_NOT_CONFIGURED',
-          'La subida de archivos no está configurada. Pega una URL de imagen.'
-        );
-      }
-      const parsed = parseDataUrl(input.data);
-      if (!parsed) return fallo('INVALID_FILE', 'El archivo enviado no es válido');
-      try {
-        // Sonar S2245: el sufijo debe ser impredecible (nombre de objeto en
-        // Storage) => PRNG criptografico, no Math.random().
-        const sufijo = randomBytes(6).toString('hex');
-        const nombre = `${productoId}/${Date.now()}-${sufijo}.${parsed.ext}`;
-        url = await subirImagenSupabase(parsed.buffer, parsed.contentType, nombre);
-      } catch (error) {
-        return fallo(
-          'STORAGE_ERROR',
-          error instanceof Error ? error.message : 'No se pudo subir la imagen'
-        );
-      }
-    }
-    if (!url) return fallo('INVALID_URL', 'Debes indicar una URL o un archivo');
+    const resuelto = await resolverUrlImagen(input, productoId);
+    if ('error' in resuelto) return fallo(resuelto.error, resuelto.message);
+    const url = resuelto.url;
 
-    const imagen = await productRepository.crearImagen(productoId, {
-      url,
-      alt: input.alt ?? null,
-      esPrincipal: input.es_principal ?? false,
-    });
+    const imagen = await productRepository.crearImagen(
+      { columna: 'producto_id', id: productoId },
+      { url, alt: input.alt ?? null, esPrincipal: input.es_principal ?? false }
+    );
     return { success: true, message: 'Imagen agregada correctamente', data: imagen };
   },
 
@@ -439,7 +395,7 @@ export const productService = {
     productoId: string,
     imagenId: string
   ): Promise<ApiResponse<{ id: string }>> {
-    const ok = await productRepository.marcarImagenPrincipal(productoId, imagenId);
+    const ok = await productRepository.marcarImagenPrincipal({ columna: 'producto_id', id: productoId }, imagenId);
     if (!ok) return fallo('RESOURCE_NOT_FOUND', 'La imagen no existe para este producto');
     return { success: true, message: 'Imagen principal actualizada', data: { id: imagenId } };
   },
@@ -452,8 +408,7 @@ export const productService = {
     const imagen = await productRepository.obtenerImagen(imagenId);
     if (!imagen || imagen.producto_id !== productoId) {
       return fallo('RESOURCE_NOT_FOUND', 'La imagen no existe para este producto');
-    }
-    await productRepository.actualizarImagen(imagenId, { alt: input.alt, orden: input.orden });
+    }    await productRepository.actualizarImagen(imagenId, { alt: input.alt, orden: input.orden });
     const actualizada = await productRepository.obtenerImagen(imagenId);
     if (!actualizada) return fallo('INTERNAL_ERROR', 'No se pudo recuperar la imagen');
     return { success: true, message: 'Imagen actualizada correctamente', data: actualizada };
@@ -463,7 +418,7 @@ export const productService = {
     productoId: string,
     imagenId: string
   ): Promise<ApiResponse<{ id: string }>> {
-    const ok = await productRepository.eliminarImagen(productoId, imagenId);
+    const ok = await productRepository.eliminarImagen({ columna: 'producto_id', id: productoId }, imagenId);
     if (!ok) return fallo('RESOURCE_NOT_FOUND', 'La imagen no existe para este producto');
     return { success: true, message: 'Imagen eliminada correctamente', data: { id: imagenId } };
   },

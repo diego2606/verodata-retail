@@ -10,6 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage && node ../scripts/normalize-lcov.mjs server/coverage/lcov.info",
+    "db:migrate": "node scripts/migrate.js",
+    "db:migrate:status": "node scripts/migrate.js --status",
     "ml:token": "node scripts/ml-token.js",
     "ml:import": "node scripts/import-ml.js"
   },

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   AlertTriangle,
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   CornerDownRight,
   Pencil,
@@ -14,7 +15,6 @@ import {
   Search,
   Tag,
   Trash2,
-  X,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { slugify } from '../../lib/slugify';
@@ -27,6 +27,7 @@ import { apiClient, ApiClientError } from '../../lib/apiClient';
 import { atributosApi } from '../../lib/atributosApi';
 import { ATRIBUTO_KEYS, ATRIBUTO_LABELS, SKU_SEGMENTOS } from '../../lib/atributos';
 import { generarSkuEstructurado } from '../../lib/sku';
+import { rutaCategoria } from '../../lib/categorias';
 import type {
   ActualizarCategoriaPayload,
   CategoriaItem,
@@ -218,9 +219,9 @@ function ErrorState({ onRetry }: { onRetry: () => void }): React.ReactElement {
   );
 }
 
-// ─── Modal de creación / edición ──────────────────────────────────────────────
+// ─── Pantalla de creación / edición (full-screen, sin modal) ──────────────────
 
-interface CategoryModalProps {
+interface CategoryFormProps {
   categoria: CategoriaItem | null;
   categorias: CategoriaItem[];
   /** Atributos del maestro global (codigo + nombre) para elegirlos. */
@@ -267,7 +268,7 @@ function parseSegmentos(texto: string): string[] {
   return out;
 }
 
-function CategoryModal({ categoria, categorias, atributosMaestro, onClose, onSaved }: CategoryModalProps): React.ReactElement {
+function CategoryForm({ categoria, categorias, atributosMaestro, onClose, onSaved }: CategoryFormProps): React.ReactElement {
   const editing = categoria !== null;
   const [serverError, setServerError] = useState<string | null>(null);
   const [slugTouched, setSlugTouched] = useState(editing);
@@ -426,21 +427,31 @@ function CategoryModal({ categoria, categorias, atributosMaestro, onClose, onSav
   };
 
   return (
-    <Modal
-      onClose={onClose}
-      labelledBy="categoria-modal-titulo"
-      panelClassName="max-w-lg"
-    >
-      <div className="mb-lg flex items-center justify-between">
+    <div>
+      {/* Barra superior (pantalla completa dentro del layout) */}
+      <div className="mb-xl flex flex-wrap items-center justify-between gap-md">
         <div className="flex items-center gap-sm">
-          <Tag size={16} className="text-primary-ink" aria-hidden="true" />
-          <h2 id="categoria-modal-titulo" className="text-sm font-medium text-ink">
-            {editing ? 'Editar categoría' : 'Nueva categoría'}
-          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-sm border border-hairline text-ink-mute',
+              'transition-colors hover:bg-hairline-cool hover:text-ink',
+              'focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2'
+            )}
+            aria-label="Volver a categorías"
+          >
+            <ArrowLeft size={15} aria-hidden="true" />
+          </button>
+          <div>
+            <h1 className="text-heading-lg font-medium text-ink">
+              {editing ? 'Editar categoría' : 'Nueva categoría'}
+            </h1>
+            <p className="text-xs text-ink-mute">
+              Datos, atributos ligados y plantilla de SKU.
+            </p>
+          </div>
         </div>
-        <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
-          <X size={15} aria-hidden="true" />
-        </Button>
       </div>
 
       {serverError && (
@@ -454,7 +465,8 @@ function CategoryModal({ categoria, categorias, atributosMaestro, onClose, onSav
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-md">
+      <div className="grid grid-cols-1 gap-xl lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-md rounded-sm border border-hairline bg-canvas p-lg">
         <div>
           <label htmlFor="nombre" className={labelClass}>
             Nombre
@@ -634,7 +646,27 @@ function CategoryModal({ categoria, categorias, atributosMaestro, onClose, onSav
           </Button>
         </div>
       </form>
-    </Modal>
+
+        <aside className="space-y-lg">
+          <section className="rounded-sm border border-hairline bg-canvas p-lg">
+            <h2 className="mb-sm text-heading-md font-medium text-ink">Atributos de categoría</h2>
+            <p className="text-xs leading-relaxed text-ink-mute">
+              Marca los atributos del maestro que esta categoría acepta (ej. una categoría de
+              zapatillas liga <span className="text-ink">Color</span> y{' '}
+              <span className="text-ink">Talla</span>). Las subcategorías los heredan si no definen los
+              propios, y el formulario de producto solo ofrecerá estos ejes.
+            </p>
+          </section>
+          <section className="rounded-sm border border-hairline bg-canvas p-lg">
+            <h2 className="mb-sm text-heading-md font-medium text-ink">Ubicación</h2>
+            <p className="text-xs text-ink-mute">
+              {rutaCategoria(categorias, padreSeleccionadoId ? Number(padreSeleccionadoId) : null) ||
+                'Categoría raíz del árbol.'}
+            </p>
+          </section>
+        </aside>
+      </div>
+    </div>
   );
 }
 
@@ -869,6 +901,19 @@ export function CategoriesPage(): React.ReactElement {
     [categorias]
   );
 
+  // Vista full-screen de creación/edición (sin modal): reemplaza el listado.
+  if (modal) {
+    return (
+      <CategoryForm
+        categoria={modal.categoria}
+        categorias={categorias}
+        atributosMaestro={maestro}
+        onClose={() => setModal(null)}
+        onSaved={handleSaved}
+      />
+    );
+  }
+
   return (
     <div>
       {/* Encabezado */}
@@ -1050,16 +1095,7 @@ export function CategoriesPage(): React.ReactElement {
         </p>
       )}
 
-      {/* Modales */}
-      {modal && (
-        <CategoryModal
-          categoria={modal.categoria}
-          categorias={categorias}
-          atributosMaestro={maestro}
-          onClose={() => setModal(null)}
-          onSaved={handleSaved}
-        />
-      )}
+      {/* Diálogos */}
       {pendingDelete && (
         <ConfirmDelete
           categoria={pendingDelete}

@@ -10,6 +10,7 @@ router.use(authenticate, authorize('SUPER_ADMIN', 'ADMIN'));
 router.get('/', categoryController.listar);
 router.post('/', categoryController.crear);
 router.patch('/orden', categoryController.reordenar);
+router.get('/:id/atributos', categoryController.atributos);
 router.patch('/:id', categoryController.actualizar);
 router.delete('/:id', categoryController.eliminar);
 

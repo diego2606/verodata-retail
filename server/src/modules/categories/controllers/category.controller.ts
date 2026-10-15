@@ -144,4 +144,24 @@ export const categoryController = {
       res.status(500).json(internalError());
     }
   },
+
+  /** GET /api/v1/categories/:id/atributos — atributos efectivos (HU035). */
+  async atributos(req: Request, res: Response): Promise<void> {
+    try {
+      const params = categoriaIdParamSchema.safeParse(req.params);
+      if (!params.success) {
+        res.status(400).json(validationError(params.error.flatten().fieldErrors));
+        return;
+      }
+      const result = await categoryService.obtenerAtributos(params.data.id);
+      if (!result.success) {
+        res.status(result.error.code === 'RESOURCE_NOT_FOUND' ? 404 : 400).json(result);
+        return;
+      }
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('[CategoryController] atributos error:', error);
+      res.status(500).json(internalError());
+    }
+  },
 };

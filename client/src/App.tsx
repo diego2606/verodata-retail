@@ -21,6 +21,7 @@ import { DashboardPage } from './pages/admin/DashboardPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { CategoriesPage } from './pages/admin/CategoriesPage';
 import { ProductsPage } from './pages/admin/ProductsPage';
+import { ProductoEditorPage } from './pages/admin/producto-editor/ProductoEditorPage';
 import { InventoryPage } from './pages/admin/InventoryPage';
 import { ColorsPage } from './pages/admin/ColorsPage';
 import { AttributesPage } from './pages/admin/AttributesPage';
@@ -69,6 +70,8 @@ function App(): React.ReactElement {
 
               {/* Catálogo e Inventario (HU007–HU012) */}
               <Route path="/admin/products" element={<ProductsPage />} />
+              <Route path="/admin/products/new" element={<ProductoEditorPage modo="crear" />} />
+              <Route path="/admin/products/:id/edit" element={<ProductoEditorPage modo="editar" />} />
               <Route path="/admin/inventory" element={<InventoryPage />} />
               <Route path="/admin/colors" element={<ColorsPage />} />
               <Route path="/admin/attributes" element={<AttributesPage />} />

@@ -37,12 +37,24 @@ export interface CrearProductoData {
 /** HU033: fila de la galería de imágenes. */
 export interface ProductoImagenRow {
   id: string;
-  producto_id: string;
+  producto_id: string | null;
+  modelo_id: string | null;
   url: string;
   alt: string | null;
   orden: number;
   es_principal: boolean;
   creado_en: Date;
+}
+
+/** HU033/HU035: ámbito de la galería de imágenes (SKU o Modelo). */
+export interface GaleriaScope {
+  columna: 'producto_id' | 'modelo_id';
+  id: string;
+}
+
+/** Tabla cuya columna `imagen_url` (portada) se sincroniza con la imagen principal. */
+function tablaPortada(scope: GaleriaScope): 'productos' | 'productos_modelo' {
+  return scope.columna === 'modelo_id' ? 'productos_modelo' : 'productos';
 }
 
 /** Campos ausentes (undefined) = no se modifican. El SKU no es editable. */
@@ -266,62 +278,65 @@ export const productRepository = {
 
   // ── HU033: galería de imágenes ──────────────────────────────────────────────
 
-  async listarImagenes(productoId: string): Promise<ProductoImagenRow[]> {
+  async listarImagenes(scope: GaleriaScope): Promise<ProductoImagenRow[]> {
     const result = await pool.query<ProductoImagenRow>(
-      `SELECT id, producto_id, url, alt, orden, es_principal, creado_en
+      `SELECT id, producto_id, modelo_id, url, alt, orden, es_principal, creado_en
        FROM producto_imagenes
-       WHERE producto_id = $1
+       WHERE ${scope.columna} = $1
        ORDER BY es_principal DESC, orden ASC, creado_en ASC`,
-      [productoId]
+      [scope.id]
     );
     return result.rows;
   },
 
   async obtenerImagen(id: string): Promise<ProductoImagenRow | null> {
     const result = await pool.query<ProductoImagenRow>(
-      `SELECT id, producto_id, url, alt, orden, es_principal, creado_en
+      `SELECT id, producto_id, modelo_id, url, alt, orden, es_principal, creado_en
        FROM producto_imagenes WHERE id = $1 LIMIT 1`,
       [id]
     );
     return result.rows[0] ?? null;
   },
 
-  /** Inserta una imagen al final. Si es la primera del producto, la marca principal. */
+  /** Inserta una imagen al final. Si es la primera del ámbito, la marca principal. */
   async crearImagen(
-    productoId: string,
+    scope: GaleriaScope,
     data: { url: string; alt: string | null; esPrincipal: boolean }
   ): Promise<ProductoImagenRow> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       const max = await client.query<{ next: number }>(
-        `SELECT COALESCE(MAX(orden), -1) + 1 AS next FROM producto_imagenes WHERE producto_id = $1`,
-        [productoId]
+        `SELECT COALESCE(MAX(orden), -1) + 1 AS next FROM producto_imagenes WHERE ${scope.columna} = $1`,
+        [scope.id]
       );
       const orden = max.rows[0].next;
 
       const hayPrincipal = await client.query<{ count: string }>(
-        `SELECT COUNT(*) AS count FROM producto_imagenes WHERE producto_id = $1 AND es_principal`,
-        [productoId]
+        `SELECT COUNT(*) AS count FROM producto_imagenes WHERE ${scope.columna} = $1 AND es_principal`,
+        [scope.id]
       );
       const esPrincipal = data.esPrincipal || Number(hayPrincipal.rows[0].count) === 0;
 
       if (esPrincipal) {
         await client.query(
-          `UPDATE producto_imagenes SET es_principal = FALSE WHERE producto_id = $1 AND es_principal`,
-          [productoId]
+          `UPDATE producto_imagenes SET es_principal = FALSE WHERE ${scope.columna} = $1 AND es_principal`,
+          [scope.id]
         );
       }
 
       const result = await client.query<ProductoImagenRow>(
-        `INSERT INTO producto_imagenes (producto_id, url, alt, orden, es_principal)
+        `INSERT INTO producto_imagenes (${scope.columna}, url, alt, orden, es_principal)
          VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, producto_id, url, alt, orden, es_principal, creado_en`,
-        [productoId, data.url, data.alt, orden, esPrincipal]
+         RETURNING id, producto_id, modelo_id, url, alt, orden, es_principal, creado_en`,
+        [scope.id, data.url, data.alt, orden, esPrincipal]
       );
 
       if (esPrincipal) {
-        await client.query(`UPDATE productos SET imagen_url = $1 WHERE id = $2`, [data.url, productoId]);
+        await client.query(`UPDATE ${tablaPortada(scope)} SET imagen_url = $1 WHERE id = $2`, [
+          data.url,
+          scope.id,
+        ]);
       }
 
       await client.query('COMMIT');
@@ -334,27 +349,27 @@ export const productRepository = {
     }
   },
 
-  /** Marca una imagen como principal y sincroniza la portada del producto. */
-  async marcarImagenPrincipal(productoId: string, imagenId: string): Promise<boolean> {
+  /** Marca una imagen como principal y sincroniza la portada del ámbito. */
+  async marcarImagenPrincipal(scope: GaleriaScope, imagenId: string): Promise<boolean> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       const imagen = await client.query<{ url: string }>(
-        `SELECT url FROM producto_imagenes WHERE id = $1 AND producto_id = $2`,
-        [imagenId, productoId]
+        `SELECT url FROM producto_imagenes WHERE id = $1 AND ${scope.columna} = $2`,
+        [imagenId, scope.id]
       );
       if (imagen.rows.length === 0) {
         await client.query('ROLLBACK');
         return false;
       }
       await client.query(
-        `UPDATE producto_imagenes SET es_principal = FALSE WHERE producto_id = $1 AND es_principal`,
-        [productoId]
+        `UPDATE producto_imagenes SET es_principal = FALSE WHERE ${scope.columna} = $1 AND es_principal`,
+        [scope.id]
       );
       await client.query(`UPDATE producto_imagenes SET es_principal = TRUE WHERE id = $1`, [imagenId]);
-      await client.query(`UPDATE productos SET imagen_url = $1 WHERE id = $2`, [
+      await client.query(`UPDATE ${tablaPortada(scope)} SET imagen_url = $1 WHERE id = $2`, [
         imagen.rows[0].url,
-        productoId,
+        scope.id,
       ]);
       await client.query('COMMIT');
       return true;
@@ -384,13 +399,13 @@ export const productRepository = {
   },
 
   /** Elimina la imagen; si era principal, promueve la siguiente y sincroniza la portada. */
-  async eliminarImagen(productoId: string, imagenId: string): Promise<boolean> {
+  async eliminarImagen(scope: GaleriaScope, imagenId: string): Promise<boolean> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       const borrada = await client.query<{ es_principal: boolean }>(
-        `DELETE FROM producto_imagenes WHERE id = $1 AND producto_id = $2 RETURNING es_principal`,
-        [imagenId, productoId]
+        `DELETE FROM producto_imagenes WHERE id = $1 AND ${scope.columna} = $2 RETURNING es_principal`,
+        [imagenId, scope.id]
       );
       if (borrada.rows.length === 0) {
         await client.query('ROLLBACK');
@@ -399,19 +414,21 @@ export const productRepository = {
 
       if (borrada.rows[0].es_principal) {
         const siguiente = await client.query<{ id: string; url: string }>(
-          `SELECT id, url FROM producto_imagenes WHERE producto_id = $1 ORDER BY orden ASC, creado_en ASC LIMIT 1`,
-          [productoId]
+          `SELECT id, url FROM producto_imagenes WHERE ${scope.columna} = $1 ORDER BY orden ASC, creado_en ASC LIMIT 1`,
+          [scope.id]
         );
         if (siguiente.rows.length > 0) {
           await client.query(`UPDATE producto_imagenes SET es_principal = TRUE WHERE id = $1`, [
             siguiente.rows[0].id,
           ]);
-          await client.query(`UPDATE productos SET imagen_url = $1 WHERE id = $2`, [
+          await client.query(`UPDATE ${tablaPortada(scope)} SET imagen_url = $1 WHERE id = $2`, [
             siguiente.rows[0].url,
-            productoId,
+            scope.id,
           ]);
         } else {
-          await client.query(`UPDATE productos SET imagen_url = NULL WHERE id = $1`, [productoId]);
+          await client.query(`UPDATE ${tablaPortada(scope)} SET imagen_url = NULL WHERE id = $1`, [
+            scope.id,
+          ]);
         }
       }
 

@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useForm, Controller, type UseFormRegisterReturn } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   ChevronDown,
@@ -14,31 +12,16 @@ import {
   PowerOff,
   Search,
   SlidersHorizontal,
-  Wand2,
-  X,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Input } from '../../components/ui/Input';
-import { Textarea } from '../../components/ui/Textarea';
 import { Select, type SelectOption } from '../../components/ui/Select';
-import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { apiClient, ApiClientError } from '../../lib/apiClient';
 import { AdjustStockModal } from '../../components/inventory/AdjustStockModal';
-import { MatrizVariantesModal } from '../../components/products/MatrizVariantesModal';
-import { ProductImagesGallery } from '../../components/products/ProductImagesGallery';
-import { NuevoValorModal } from '../../components/products/NuevoValorModal';
-import { atributosApi } from '../../lib/atributosApi';
-import type { TipoAtributo } from '../../types/atributo.types';
-import { generarSkuSugerido, generarSkuEstructurado } from '../../lib/sku';
-import { opcionesCategoriaJerarquicas, rutaCategoria } from '../../lib/categorias';
+import { opcionesCategoriaJerarquicas } from '../../lib/categorias';
 import type { CategoriaItem } from '../../types/category.types';
-import type {
-  ActualizarProductoPayload,
-  AtributosVariante,
-  CrearProductoPayload,
-  ProductoItem,
-} from '../../types/product.types';
+import type { ProductoItem } from '../../types/product.types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -60,74 +43,14 @@ const ATRIBUTO_LABELS: Record<string, string> = {
   MODEL: 'Modelo (código)',
   GENDER: 'Género',
   LINE: 'Línea',
+  BRAND: 'Marca',
 };
-
-type CampoAtributoForm =
-  | 'color'
-  | 'talla'
-  | 'capacidad'
-  | 'almacenamiento'
-  | 'genero'
-  | 'linea'
-  | 'modeloCodigo'
-  | 'marca';
-
-interface AtributoCampo {
-  key: string;
-  label: string;
-  placeholder: string;
-  form: CampoAtributoForm;
-}
-
-/** Campos de atributo disponibles en el formulario (claves del whitelist del backend). */
-const ATRIBUTO_CAMPOS: AtributoCampo[] = [
-  { key: 'COLOR', label: 'Color', placeholder: 'Negro', form: 'color' },
-  { key: 'SIZE', label: 'Talla', placeholder: '42', form: 'talla' },
-  { key: 'CAPACITY', label: 'Capacidad', placeholder: '1 L', form: 'capacidad' },
-  { key: 'STORAGE_CAPACITY', label: 'Almacenamiento', placeholder: '128 GB', form: 'almacenamiento' },
-  { key: 'GENDER', label: 'Género', placeholder: 'Unisex', form: 'genero' },
-  { key: 'LINE', label: 'Línea', placeholder: 'QuietComfort', form: 'linea' },
-  { key: 'MODEL', label: 'Modelo (código)', placeholder: 'AC5999', form: 'modeloCodigo' },
-  { key: 'BRAND', label: 'Marca', placeholder: 'Apple', form: 'marca' },
-];
-
-const ATRIBUTOS_SUGERIDOS_DEFAULT = ['COLOR', 'SIZE', 'CAPACITY'];
-
-/** Campos a mostrar: los permitidos por la categoría + los que ya trae el producto. */
-function camposVisibles(sugeridos: string[], clavesExistentes: string[]): AtributoCampo[] {
-  return ATRIBUTO_CAMPOS.filter(
-    campo => sugeridos.includes(campo.key) || clavesExistentes.includes(campo.key)
-  );
-}
 
 /** Atributos no vacíos de una variante, con etiqueta legible. */
 function listarAtributos(producto: ProductoItem): Array<{ label: string; value: string }> {
   return Object.entries(producto.atributos)
     .filter(([, value]) => Boolean(value))
     .map(([key, value]) => ({ label: ATRIBUTO_LABELS[key] ?? key, value }));
-}
-
-/** Construye el mapa de atributos desde los campos del formulario (whitelist del backend). */
-function construirAtributos(values: {
-  color?: string;
-  talla?: string;
-  capacidad?: string;
-  almacenamiento?: string;
-  genero?: string;
-  linea?: string;
-  modeloCodigo?: string;
-  marca?: string;
-}): AtributosVariante {
-  const atributos: AtributosVariante = {};
-  if (values.color) atributos.COLOR = values.color;
-  if (values.talla) atributos.SIZE = values.talla;
-  if (values.capacidad) atributos.CAPACITY = values.capacidad;
-  if (values.almacenamiento) atributos.STORAGE_CAPACITY = values.almacenamiento;
-  if (values.genero) atributos.GENDER = values.genero;
-  if (values.linea) atributos.LINE = values.linea;
-  if (values.modeloCodigo) atributos.MODEL = values.modeloCodigo;
-  if (values.marca) atributos.BRAND = values.marca;
-  return atributos;
 }
 
 interface GrupoProducto {
@@ -161,79 +84,6 @@ function estaBajo(producto: ProductoItem): boolean {
   return producto.stock_actual <= producto.stock_minimo;
 }
 
-// ─── Schema del formulario (HU007) ────────────────────────────────────────────
-
-const productoSchema = z
-  .object({
-    categoria_id: z.number().int().positive('Selecciona una categoría'),
-    sku: z.string().trim().max(50).optional().or(z.literal('')),
-    nombre: z.string().trim().min(2, 'Mínimo 2 caracteres').max(150),
-    descripcion: z.string().trim().min(1, 'La descripción es obligatoria').max(1000),
-    precio_regular: z
-      .number({ invalid_type_error: 'Ingresa un precio válido' })
-      .positive('El precio debe ser mayor a 0'),
-    precio_oferta: z.preprocess(
-      (v) => (v === '' || v === null || (typeof v === 'number' && Number.isNaN(v)) ? undefined : v),
-      z.number().positive('El precio de oferta debe ser mayor a 0').optional()
-    ),
-    imagen_url: z.string().trim().url('URL inválida').max(500).optional().or(z.literal('')),
-    modelo: z.string().trim().max(255).optional().or(z.literal('')),
-    color: z.string().trim().max(100).optional().or(z.literal('')),
-    talla: z.string().trim().max(100).optional().or(z.literal('')),
-    capacidad: z.string().trim().max(100).optional().or(z.literal('')),
-    almacenamiento: z.string().trim().max(100).optional().or(z.literal('')),
-    genero: z.string().trim().max(100).optional().or(z.literal('')),
-    linea: z.string().trim().max(100).optional().or(z.literal('')),
-    modeloCodigo: z.string().trim().max(100).optional().or(z.literal('')),
-    marca: z.string().trim().max(100).optional().or(z.literal('')),
-    stock_inicial: z.preprocess(
-      v => (v === '' || v === null || (typeof v === 'number' && Number.isNaN(v)) ? undefined : v),
-      z.number({ invalid_type_error: 'Ingresa un número' }).int('Debe ser un entero').min(0, 'No puede ser negativo').optional()
-    ),
-    stock_minimo: z.preprocess(
-      v => (v === '' || v === null || (typeof v === 'number' && Number.isNaN(v)) ? undefined : v),
-      z.number({ invalid_type_error: 'Ingresa un número' }).int('Debe ser un entero').min(0, 'No puede ser negativo').optional()
-    ),
-  })
-  .refine((d) => d.precio_oferta === undefined || d.precio_oferta < d.precio_regular, {
-    message: 'El precio de oferta debe ser menor que el precio regular',
-    path: ['precio_oferta'],
-  });
-
-type ProductoFormValues = z.infer<typeof productoSchema>;
-
-// ─── Schema de edición (HU008 — el SKU no se modifica) ────────────────────────
-
-const editarProductoSchema = z
-  .object({
-    categoria_id: z.number().int().positive('Selecciona una categoría'),
-    nombre: z.string().trim().min(2, 'Mínimo 2 caracteres').max(150),
-    descripcion: z.string().trim().min(1, 'La descripción es obligatoria').max(1000),
-    precio_regular: z
-      .number({ invalid_type_error: 'Ingresa un precio válido' })
-      .positive('El precio debe ser mayor a 0'),
-    precio_oferta: z.preprocess(
-      (v) => (v === '' || v === null || (typeof v === 'number' && Number.isNaN(v)) ? undefined : v),
-      z.number().positive('El precio de oferta debe ser mayor a 0').optional()
-    ),
-    imagen_url: z.string().trim().url('URL inválida').max(500).optional().or(z.literal('')),
-    modelo: z.string().trim().max(255).optional().or(z.literal('')),
-    color: z.string().trim().max(100).optional().or(z.literal('')),
-    talla: z.string().trim().max(100).optional().or(z.literal('')),
-    capacidad: z.string().trim().max(100).optional().or(z.literal('')),
-    almacenamiento: z.string().trim().max(100).optional().or(z.literal('')),
-    genero: z.string().trim().max(100).optional().or(z.literal('')),
-    linea: z.string().trim().max(100).optional().or(z.literal('')),
-    modeloCodigo: z.string().trim().max(100).optional().or(z.literal('')),
-    marca: z.string().trim().max(100).optional().or(z.literal('')),
-  })
-  .refine((d) => d.precio_oferta === undefined || d.precio_oferta < d.precio_regular, {
-    message: 'El precio de oferta debe ser menor que el precio regular',
-    path: ['precio_oferta'],
-  });
-
-type EditarProductoFormValues = z.infer<typeof editarProductoSchema>;
-
 const ESTADO_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'Todos los estados' },
   { value: 'activo', label: 'Activos' },
@@ -244,111 +94,6 @@ const STOCK_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'Todo el stock' },
   { value: 'solo', label: 'Solo stock bajo' },
 ];
-
-const labelClass = 'block text-xs font-medium text-ink mb-xs';
-
-function FieldError({ message }: { message?: string }): React.ReactElement | null {
-  if (!message) return null;
-  return (
-    <p role="alert" aria-live="polite" className="mt-xs text-xs text-retail-red">
-      {message}
-    </p>
-  );
-}
-
-function AtributoInput({
-  id,
-  label,
-  placeholder,
-  registration,
-  sugerencias,
-  onPick,
-  requerido,
-  deshabilitado,
-  atributo,
-}: {
-  id: string;
-  label: string;
-  placeholder: string;
-  registration: UseFormRegisterReturn;
-  sugerencias?: string[];
-  onPick?: (value: string) => void;
-  requerido?: boolean;
-  deshabilitado?: boolean;
-  /** Atributo del maestro (para crear valores en caliente). */
-  atributo?: { id: number; nombre: string; tipo: TipoAtributo };
-}): React.ReactElement {
-  const [nuevoAbierto, setNuevoAbierto] = useState(false);
-
-  return (
-    <div>
-      <div className="flex items-center justify-between gap-sm">
-        <label htmlFor={id} className={labelClass}>
-          {label}
-          {requerido && <span className="text-retail-red"> *</span>}
-        </label>
-        {atributo && !deshabilitado && (
-          <button
-            type="button"
-            onClick={() => setNuevoAbierto(true)}
-            className="text-xs font-medium text-primary-ink hover:underline"
-          >
-            + Nuevo valor
-          </button>
-        )}
-      </div>
-      <Input id={id} placeholder={placeholder} disabled={deshabilitado} {...registration} />
-      {!deshabilitado && sugerencias && sugerencias.length > 0 && onPick && (
-        <div className="mt-xs flex flex-wrap gap-xs">
-          {sugerencias.map(valor => (
-            <Button
-              key={valor}
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => onPick(valor)}
-            >
-              {valor}
-            </Button>
-          ))}
-        </div>
-      )}
-
-      {nuevoAbierto && atributo && (
-        <NuevoValorModal
-          atributoId={atributo.id}
-          atributoNombre={atributo.nombre}
-          tipo={atributo.tipo}
-          onClose={() => setNuevoAbierto(false)}
-          onCreated={valor => {
-            setNuevoAbierto(false);
-            onPick?.(valor);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-/** Maestro de atributos indexado por código (para crear valores en caliente). */
-function useMaestroAtributos(): Map<string, { id: number; nombre: string; tipo: TipoAtributo }> {
-  const [mapa, setMapa] = useState(new Map<string, { id: number; nombre: string; tipo: TipoAtributo }>());
-  useEffect(() => {
-    let active = true;
-    atributosApi
-      .listar()
-      .then(json => {
-        if (active && json.success) {
-          setMapa(new Map(json.data.map(a => [a.codigo, { id: a.id, nombre: a.nombre, tipo: a.tipo }])));
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
-  return mapa;
-}
 
 // ─── Presentación ─────────────────────────────────────────────────────────────
 
@@ -529,663 +274,6 @@ function ErrorState({ onRetry }: { onRetry: () => void }): React.ReactElement {
   );
 }
 
-// ─── Modal de creación ────────────────────────────────────────────────────────
-
-interface CreateProductModalProps {
-  onClose: () => void;
-  onCreated: (message: string) => void;
-}
-
-function CreateProductModal({ onClose, onCreated }: CreateProductModalProps): React.ReactElement {
-  const maestro = useMaestroAtributos();
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [categorias, setCategorias] = useState<CategoriaItem[]>([]);
-  const [categoriasStatus, setCategoriasStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-
-
-  const {
-    register,
-    handleSubmit,
-    control,
-    watch,
-    setValue,
-    formState: { errors, isSubmitting },
-  } = useForm<ProductoFormValues>({
-    resolver: zodResolver(productoSchema),
-  });
-
-  useEffect(() => {
-    let active = true;
-    apiClient
-      .get<CategoriaItem[]>('/api/v1/categories?activo=true')
-      .then(json => {
-        if (!active) return;
-        if (!json.success) {
-          setCategoriasStatus('error');
-          return;
-        }
-        setCategorias(json.data);
-        setCategoriasStatus('ready');
-      })
-      .catch(() => {
-        if (active) setCategoriasStatus('error');
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const onSubmit = async (values: ProductoFormValues): Promise<void> => {
-    setServerError(null);
-
-    const atributos = construirAtributos(values);
-    const usaPlantilla = (categoriaSeleccionada?.sku_segmentos ?? []).length > 0;
-    if (!usaPlantilla && (!values.sku || values.sku.trim().length < 3)) {
-      setServerError('El SKU es obligatorio (mínimo 3 caracteres).');
-      return;
-    }
-    const payload: CrearProductoPayload = {
-      categoria_id: values.categoria_id,
-      sku: usaPlantilla ? undefined : values.sku?.trim(),
-      nombre: values.nombre,
-      descripcion: values.descripcion,
-      precio_regular: values.precio_regular,
-      precio_oferta: values.precio_oferta,
-      imagen_url: values.imagen_url ? values.imagen_url : undefined,
-      modelo: values.modelo ? values.modelo : undefined,
-      atributos: Object.keys(atributos).length > 0 ? atributos : undefined,
-      stock_inicial: values.stock_inicial,
-      stock_minimo: values.stock_minimo,
-    };
-
-    try {
-      const json = await apiClient.post<ProductoItem>('/api/v1/products', payload);
-      if (!json.success) {
-        setServerError(json.error.message);
-        return;
-      }
-      onCreated(`Producto ${json.data.sku} creado`);
-    } catch (error) {
-      setServerError(
-        error instanceof ApiClientError ? error.message : 'Error de conexión. Intenta nuevamente.'
-      );
-    }
-  };
-
-  const categoriaOptions: SelectOption[] = opcionesCategoriaJerarquicas(categorias);
-
-  const categoriaSeleccionada = categorias.find(c => c.id === watch('categoria_id'));
-  const visibles = camposVisibles(
-    categoriaSeleccionada?.atributos_sugeridos ?? ATRIBUTOS_SUGERIDOS_DEFAULT,
-    []
-  );
-  const plantillaSku = categoriaSeleccionada?.sku_segmentos ?? [];
-  const usaPlantilla = plantillaSku.length > 0;
-  const requeridosSku = plantillaSku.filter(token => token !== 'CATEGORIA');
-  const skuGenerado = usaPlantilla
-    ? generarSkuEstructurado(
-        plantillaSku,
-        categoriaSeleccionada?.sku_prefijo,
-        construirAtributos(watch())
-      )
-    : '';
-
-  return (
-    <Modal onClose={onClose} labelledBy="crear-producto-titulo" panelClassName="max-w-2xl">
-      <div className="mb-lg flex items-center justify-between">
-        <div className="flex items-center gap-sm">
-          <Package size={16} className="text-primary-ink" aria-hidden="true" />
-          <h2 id="crear-producto-titulo" className="text-sm font-medium text-ink">
-            Nuevo producto
-          </h2>
-        </div>
-        <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
-          <X size={15} aria-hidden="true" />
-        </Button>
-      </div>
-
-      {serverError && (
-        <div
-          role="alert"
-          aria-live="polite"
-          className="mb-md flex items-start gap-xs rounded-xs border border-retail-red/20 bg-retail-red/5 p-sm"
-        >
-          <AlertTriangle size={13} className="mt-px shrink-0 text-retail-red" aria-hidden="true" />
-          <p className="text-xs text-ink-secondary">{serverError}</p>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-md">
-        <div className="grid grid-cols-2 gap-md">
-          <div>
-            <label htmlFor="sku" className={labelClass}>
-              SKU {usaPlantilla && <span className="text-ink-faint">(autogenerado)</span>}
-            </label>
-            {usaPlantilla ? (
-              <Input
-                id="sku"
-                readOnly
-                disabled
-                value={skuGenerado || '—'}
-                className="font-mono"
-                aria-label="SKU autogenerado"
-              />
-            ) : (
-              <div className="flex items-center gap-xs">
-                <Input
-                  id="sku"
-                  invalid={!!errors.sku}
-                  className="font-mono uppercase"
-                  placeholder="ZAP-RUN-001"
-                  {...register('sku')}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() =>
-                    setValue(
-                      'sku',
-                      generarSkuSugerido({
-                        categoria: categoriaSeleccionada?.nombre,
-                        modelo: watch('modelo'),
-                        atributos: construirAtributos(watch()),
-                      }),
-                      { shouldValidate: true }
-                    )
-                  }
-                >
-                  <Wand2 size={12} aria-hidden="true" />
-                  Generar
-                </Button>
-              </div>
-            )}
-            <FieldError message={errors.sku?.message} />
-            {usaPlantilla && (
-              <p className="mt-xs text-xs text-ink-mute">
-                Se arma con la plantilla de la categoría (usa los atributos marcados con *).
-              </p>
-            )}
-          </div>
-          <div>
-            <label htmlFor="categoria_id" className={labelClass}>
-              Categoría
-            </label>
-            {categoriasStatus === 'loading' && (
-              <div className="h-9 animate-pulse rounded-xs bg-hairline-cool" aria-busy="true" />
-            )}
-            {categoriasStatus === 'error' && (
-              <p className="rounded-xs border border-retail-red/20 bg-retail-red/5 p-sm text-xs text-ink-secondary">
-                No se pudieron cargar las categorías.
-              </p>
-            )}
-            {categoriasStatus === 'ready' && (
-              <>
-                <Controller
-                  name="categoria_id"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      id="categoria_id"
-                      value={field.value !== undefined ? String(field.value) : ''}
-                      onChange={value => field.onChange(Number(value))}
-                      onBlur={field.onBlur}
-                      name={field.name}
-                      placeholder="Seleccionar categoría"
-                      options={categoriaOptions}
-                      invalid={!!errors.categoria_id}
-                    />
-                  )}
-                />
-                <FieldError message={errors.categoria_id?.message} />
-              </>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="nombre" className={labelClass}>
-            Nombre
-          </label>
-          <Input id="nombre" invalid={!!errors.nombre} placeholder="Zapatilla running" {...register('nombre')} />
-          <FieldError message={errors.nombre?.message} />
-        </div>
-
-        <div>
-          <label htmlFor="descripcion" className={labelClass}>
-            Descripción
-          </label>
-          <Textarea
-            id="descripcion"
-            invalid={!!errors.descripcion}
-            placeholder="Detalle del artículo…"
-            {...register('descripcion')}
-          />
-          <FieldError message={errors.descripcion?.message} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-md">
-          <div>
-            <label htmlFor="precio_regular" className={labelClass}>
-              Precio regular (S/)
-            </label>
-            <Input
-              id="precio_regular"
-              type="number"
-              step="0.01"
-              min="0"
-              invalid={!!errors.precio_regular}
-              className="tabular-nums"
-              placeholder="199.90"
-              {...register('precio_regular', { valueAsNumber: true })}
-            />
-            <FieldError message={errors.precio_regular?.message} />
-          </div>
-          <div>
-            <label htmlFor="precio_oferta" className={labelClass}>
-              Precio oferta (S/) <span className="text-ink-faint">(opcional)</span>
-            </label>
-            <Input
-              id="precio_oferta"
-              type="number"
-              step="0.01"
-              min="0"
-              invalid={!!errors.precio_oferta}
-              className="tabular-nums"
-              placeholder="149.90"
-              {...register('precio_oferta', { valueAsNumber: true })}
-            />
-            <FieldError message={errors.precio_oferta?.message} />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-md">
-          <div>
-            <label htmlFor="stock_inicial" className={labelClass}>
-              Stock inicial
-            </label>
-            <Input
-              id="stock_inicial"
-              type="number"
-              step="1"
-              min="0"
-              inputMode="numeric"
-              invalid={!!errors.stock_inicial}
-              className="tabular-nums"
-              placeholder="0"
-              {...register('stock_inicial', { valueAsNumber: true })}
-            />
-            <FieldError message={errors.stock_inicial?.message} />
-          </div>
-          <div>
-            <label htmlFor="stock_minimo" className={labelClass}>
-              Stock mínimo
-            </label>
-            <Input
-              id="stock_minimo"
-              type="number"
-              step="1"
-              min="0"
-              inputMode="numeric"
-              invalid={!!errors.stock_minimo}
-              className="tabular-nums"
-              placeholder="5"
-              {...register('stock_minimo', { valueAsNumber: true })}
-            />
-            <FieldError message={errors.stock_minimo?.message} />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="imagen_url" className={labelClass}>
-            URL de imagen <span className="text-ink-faint">(opcional)</span>
-          </label>
-          <Input
-            id="imagen_url"
-            invalid={!!errors.imagen_url}
-            placeholder="https://…"
-            {...register('imagen_url')}
-          />
-          <FieldError message={errors.imagen_url?.message} />
-        </div>
-
-        <fieldset className="rounded-sm border border-hairline-cool bg-canvas-soft p-sm">
-          <legend className="px-xs text-xs font-medium text-ink">Variante (opcional)</legend>
-          <div className="grid grid-cols-2 gap-md">
-            <div className="col-span-2">
-              <label htmlFor="modelo" className={labelClass}>
-                Modelo (familia)
-              </label>
-              <Input id="modelo" placeholder="Nike Air Force 1" {...register('modelo')} />
-              <p className="mt-xs text-xs text-ink-mute">
-                Agrupa esta ficha con sus variantes de color, talla o capacidad.
-              </p>
-            </div>
-            <div className="col-span-2">
-              <p className="text-xs text-ink-mute">
-                {categoriaSeleccionada
-                  ? `Atributos de ${rutaCategoria(categorias, categoriaSeleccionada.id)}`
-                  : 'Selecciona una categoría para ver sus atributos'}
-              </p>
-            </div>
-            {visibles.map(campo => (
-              <AtributoInput
-                key={campo.key}
-                id={`atributo-${campo.form}`}
-                label={campo.label}
-                placeholder={campo.placeholder}
-                registration={register(campo.form)}
-                sugerencias={categoriaSeleccionada?.valores_sugeridos?.[campo.key]}
-                onPick={valor => setValue(campo.form, valor, { shouldValidate: true })}
-                requerido={usaPlantilla && requeridosSku.includes(campo.key)}
-                atributo={maestro.get(campo.key)}
-              />
-            ))}
-          </div>
-        </fieldset>
-
-        <div className="flex items-center justify-end gap-sm pt-md">
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button type="submit" isLoading={isSubmitting} disabled={categoriasStatus !== 'ready'}>
-            {isSubmitting ? 'Creando…' : 'Crear producto'}
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-// ─── Modal de edición (HU008) ─────────────────────────────────────────────────
-
-interface EditProductModalProps {
-  producto: ProductoItem;
-  onClose: () => void;
-  onUpdated: (message: string) => void;
-}
-
-function EditProductModal({ producto, onClose, onUpdated }: EditProductModalProps): React.ReactElement {
-  const maestro = useMaestroAtributos();
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [categorias, setCategorias] = useState<CategoriaItem[]>([]);
-  const [categoriasStatus, setCategoriasStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-
-
-  const {
-    register,
-    handleSubmit,
-    control,
-    watch,
-    setValue,
-    formState: { errors, isSubmitting },
-  } = useForm<EditarProductoFormValues>({
-    resolver: zodResolver(editarProductoSchema),
-    defaultValues: {
-      categoria_id: producto.categoria_id,
-      nombre: producto.nombre,
-      descripcion: producto.descripcion ?? '',
-      precio_regular: producto.precio_regular,
-      precio_oferta: producto.precio_oferta ?? undefined,
-      imagen_url: producto.imagen_url ?? '',
-      modelo: producto.modelo ?? '',
-      color: producto.atributos.COLOR ?? '',
-      talla: producto.atributos.SIZE ?? '',
-      capacidad: producto.atributos.CAPACITY ?? '',
-      almacenamiento: producto.atributos.STORAGE_CAPACITY ?? '',
-      genero: producto.atributos.GENDER ?? '',
-      linea: producto.atributos.LINE ?? '',
-      modeloCodigo: producto.atributos.MODEL ?? '',
-    },
-  });
-
-  useEffect(() => {
-    let active = true;
-    apiClient
-      .get<CategoriaItem[]>('/api/v1/categories')
-      .then(json => {
-        if (!active) return;
-        if (!json.success) {
-          setCategoriasStatus('error');
-          return;
-        }
-        setCategorias(json.data);
-        setCategoriasStatus('ready');
-      })
-      .catch(() => {
-        if (active) setCategoriasStatus('error');
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const onSubmit = async (values: EditarProductoFormValues): Promise<void> => {
-    setServerError(null);
-
-    const payload: ActualizarProductoPayload = {
-      categoria_id: values.categoria_id,
-      nombre: values.nombre,
-      descripcion: values.descripcion,
-      precio_regular: values.precio_regular,
-      precio_oferta: values.precio_oferta ?? null,
-      imagen_url: values.imagen_url ?? '',
-      modelo: values.modelo ? values.modelo : null,
-      atributos: construirAtributos(values),
-    };
-
-    try {
-      const json = await apiClient.patch<ProductoItem>(`/api/v1/products/${producto.id}`, payload);
-      if (!json.success) {
-        setServerError(json.error.message);
-        return;
-      }
-      onUpdated(`Producto ${json.data.sku} actualizado`);
-    } catch (error) {
-      setServerError(
-        error instanceof ApiClientError ? error.message : 'Error de conexión. Intenta nuevamente.'
-      );
-    }
-  };
-
-  const categoriaOptions: SelectOption[] = opcionesCategoriaJerarquicas(categorias);
-
-  const categoriaSeleccionada = categorias.find(c => c.id === watch('categoria_id'));
-  const visibles = camposVisibles(
-    categoriaSeleccionada?.atributos_sugeridos ?? ATRIBUTOS_SUGERIDOS_DEFAULT,
-    Object.keys(producto.atributos)
-  );
-  const plantillaSku = categoriaSeleccionada?.sku_segmentos ?? [];
-  const usaPlantilla = plantillaSku.length > 0;
-  const requeridosSku = plantillaSku.filter(token => token !== 'CATEGORIA');
-
-  return (
-    <Modal onClose={onClose} labelledBy="editar-producto-titulo" panelClassName="max-w-2xl">
-      <div className="mb-lg flex items-center justify-between">
-        <div className="flex items-center gap-sm">
-          <Pencil size={16} className="text-primary-ink" aria-hidden="true" />
-          <h2 id="editar-producto-titulo" className="text-sm font-medium text-ink">
-            Editar producto
-          </h2>
-        </div>
-        <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
-          <X size={15} aria-hidden="true" />
-        </Button>
-      </div>
-
-      {serverError && (
-        <div
-          role="alert"
-          aria-live="polite"
-          className="mb-md flex items-start gap-xs rounded-xs border border-retail-red/20 bg-retail-red/5 p-sm"
-        >
-          <AlertTriangle size={13} className="mt-px shrink-0 text-retail-red" aria-hidden="true" />
-          <p className="text-xs text-ink-secondary">{serverError}</p>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-md">
-        <div className="grid grid-cols-2 gap-md">
-          <div>
-            <label htmlFor="edit-sku" className={labelClass}>
-              SKU
-            </label>
-            <Input id="edit-sku" value={producto.sku} readOnly disabled className="font-mono" />
-          </div>
-          <div>
-            <label htmlFor="edit-categoria_id" className={labelClass}>
-              Categoría
-            </label>
-            {categoriasStatus === 'loading' && (
-              <div className="h-9 animate-pulse rounded-xs bg-hairline-cool" aria-busy="true" />
-            )}
-            {categoriasStatus === 'error' && (
-              <p className="rounded-xs border border-retail-red/20 bg-retail-red/5 p-sm text-xs text-ink-secondary">
-                No se pudieron cargar las categorías.
-              </p>
-            )}
-            {categoriasStatus === 'ready' && (
-              <>
-                <Controller
-                  name="categoria_id"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      id="edit-categoria_id"
-                      value={field.value !== undefined ? String(field.value) : ''}
-                      onChange={value => field.onChange(Number(value))}
-                      onBlur={field.onBlur}
-                      name={field.name}
-                      placeholder="Seleccionar categoría"
-                      options={categoriaOptions}
-                      invalid={!!errors.categoria_id}
-                    />
-                  )}
-                />
-                <FieldError message={errors.categoria_id?.message} />
-              </>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="edit-nombre" className={labelClass}>
-            Nombre
-          </label>
-          <Input id="edit-nombre" invalid={!!errors.nombre} {...register('nombre')} />
-          <FieldError message={errors.nombre?.message} />
-        </div>
-
-        <div>
-          <label htmlFor="edit-descripcion" className={labelClass}>
-            Descripción
-          </label>
-          <Textarea id="edit-descripcion" invalid={!!errors.descripcion} {...register('descripcion')} />
-          <FieldError message={errors.descripcion?.message} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-md">
-          <div>
-            <label htmlFor="edit-precio_regular" className={labelClass}>
-              Precio regular (S/)
-            </label>
-            <Input
-              id="edit-precio_regular"
-              type="number"
-              step="0.01"
-              min="0"
-              invalid={!!errors.precio_regular}
-              className="tabular-nums"
-              {...register('precio_regular', { valueAsNumber: true })}
-            />
-            <FieldError message={errors.precio_regular?.message} />
-          </div>
-          <div>
-            <label htmlFor="edit-precio_oferta" className={labelClass}>
-              Precio oferta (S/) <span className="text-ink-faint">(opcional)</span>
-            </label>
-            <Input
-              id="edit-precio_oferta"
-              type="number"
-              step="0.01"
-              min="0"
-              invalid={!!errors.precio_oferta}
-              className="tabular-nums"
-              {...register('precio_oferta', { valueAsNumber: true })}
-            />
-            <FieldError message={errors.precio_oferta?.message} />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="edit-imagen_url" className={labelClass}>
-            URL de imagen <span className="text-ink-faint">(opcional)</span>
-          </label>
-          <Input id="edit-imagen_url" invalid={!!errors.imagen_url} {...register('imagen_url')} />
-          <FieldError message={errors.imagen_url?.message} />
-        </div>
-
-        <fieldset className="rounded-sm border border-hairline-cool bg-canvas-soft p-sm">
-          <legend className="px-xs text-xs font-medium text-ink">Variante</legend>
-          <div className="grid grid-cols-2 gap-md">
-            <div className="col-span-2">
-              <label htmlFor="edit-modelo" className={labelClass}>
-                Modelo (familia)
-              </label>
-              <Input id="edit-modelo" placeholder="Nike Air Force 1" {...register('modelo')} />
-            </div>
-            <div className="col-span-2">
-              <p className="text-xs text-ink-mute">
-                {categoriaSeleccionada
-                  ? `Atributos de ${rutaCategoria(categorias, categoriaSeleccionada.id)}`
-                  : 'Selecciona una categoría para ver sus atributos'}
-              </p>
-              {usaPlantilla && (
-                <p className="mt-xs text-xs text-ink-mute">
-                  El SKU es inmutable: los campos marcados con * están bloqueados. Para cambiarlos,
-                  desactiva este producto y crea uno nuevo.
-                </p>
-              )}
-            </div>
-            {visibles.map(campo => (
-              <AtributoInput
-                key={campo.key}
-                id={`edit-atributo-${campo.form}`}
-                label={campo.label}
-                placeholder={campo.placeholder}
-                registration={register(campo.form)}
-                sugerencias={categoriaSeleccionada?.valores_sugeridos?.[campo.key]}
-                onPick={valor => setValue(campo.form, valor, { shouldValidate: true })}
-                requerido={usaPlantilla && requeridosSku.includes(campo.key)}
-                deshabilitado={usaPlantilla && requeridosSku.includes(campo.key)}
-                atributo={maestro.get(campo.key)}
-              />
-            ))}
-          </div>
-        </fieldset>
-
-        <fieldset className="rounded-sm border border-hairline-cool bg-canvas-soft p-sm">
-          <legend className="px-xs text-xs font-medium text-ink">Imágenes</legend>
-          <p className="mb-sm text-xs text-ink-mute">
-            La imagen principal es la que se muestra en el catálogo; las demás son vistas.
-          </p>
-          <ProductImagesGallery productoId={producto.id} />
-        </fieldset>
-
-        <div className="flex items-center justify-end gap-sm pt-md">
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button type="submit" isLoading={isSubmitting} disabled={categoriasStatus !== 'ready'}>
-            {isSubmitting ? 'Guardando…' : 'Guardar cambios'}
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
 // ─── Filas de la tabla ────────────────────────────────────────────────────────
 
 function StockCell({ producto }: { producto: ProductoItem }): React.ReactElement {
@@ -1296,9 +384,10 @@ interface GrupoRowProps {
   grupo: GrupoProducto;
   expandido: boolean;
   onToggle: () => void;
+  onEditModelo: (grupo: GrupoProducto) => void;
 }
 
-function GrupoRow({ grupo, expandido, onToggle }: GrupoRowProps): React.ReactElement {
+function GrupoRow({ grupo, expandido, onToggle, onEditModelo }: GrupoRowProps): React.ReactElement {
   const { items, modelo } = grupo;
   const primero = items[0];
   const precios = items.map(i => i.precio_oferta ?? i.precio_regular);
@@ -1359,9 +448,13 @@ function GrupoRow({ grupo, expandido, onToggle }: GrupoRowProps): React.ReactEle
         {activos}/{items.length} activos
       </td>
       <td className="px-3 py-2.5">
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-xs">
           <Button type="button" variant="secondary" size="sm" onClick={onToggle}>
             {expandido ? 'Contraer' : 'Ver variantes'}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onEditModelo(grupo)}>
+            <Pencil size={12} aria-hidden="true" />
+            Editar
           </Button>
         </div>
       </td>
@@ -1377,6 +470,7 @@ interface ToastState {
 }
 
 export function ProductsPage(): React.ReactElement {
+  const navigate = useNavigate();
   const [productos, setProductos] = useState<ProductoItem[]>([]);
   const [categorias, setCategorias] = useState<CategoriaItem[]>([]);
   const [status, setStatus] = useState<'loading' | 'error' | 'ready'>('loading');
@@ -1390,9 +484,6 @@ export function ProductsPage(): React.ReactElement {
   const [agrupar, setAgrupar] = useState(true);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [showMatriz, setShowMatriz] = useState(false);
-  const [editing, setEditing] = useState<ProductoItem | null>(null);
   const [adjusting, setAdjusting] = useState<ProductoItem | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -1463,31 +554,25 @@ export function ProductsPage(): React.ReactElement {
     setStockBajoFilter('');
   }, []);
 
-  const handleCreated = useCallback(
-    (message: string): void => {
-      setShowCreate(false);
-      setToast({ type: 'success', message });
-      reload();
+  const irACrear = useCallback((): void => {
+    void navigate('/admin/products/new');
+  }, [navigate]);
+
+  const irAEditar = useCallback(
+    (producto: ProductoItem): void => {
+      void navigate(`/admin/products/${producto.id}/edit`);
     },
-    [reload]
+    [navigate]
   );
 
-  const handleMatrizCreated = useCallback(
-    (message: string): void => {
-      setShowMatriz(false);
-      setToast({ type: 'success', message });
-      reload();
+  // El listado agrupa por `modelo`; "Editar" abre el primer SKU del grupo
+  // (la vista de edición carga el modelo completo y todas sus variantes).
+  const irAEditarGrupo = useCallback(
+    (grupo: GrupoProducto): void => {
+      const primero = grupo.items[0];
+      if (primero) void navigate(`/admin/products/${primero.id}/edit`);
     },
-    [reload]
-  );
-
-  const handleUpdated = useCallback(
-    (message: string): void => {
-      setEditing(null);
-      setToast({ type: 'success', message });
-      reload();
-    },
-    [reload]
+    [navigate]
   );
 
   const handleAdjusted = useCallback(
@@ -1562,19 +647,13 @@ export function ProductsPage(): React.ReactElement {
         <div>
           <h1 className="text-heading-lg font-medium text-ink">Catálogo</h1>
           <p className="mt-xs text-sm text-ink-mute">
-            Artículos publicados en la tienda, con su precio y disponibilidad.
+            Productos (modelo) y sus variantes publicadas en la tienda.
           </p>
         </div>
-        <div className="flex items-center gap-sm">
-          <Button type="button" variant="secondary" onClick={() => setShowMatriz(true)}>
-            <Layers size={15} aria-hidden="true" />
-            Matriz de variantes
-          </Button>
-          <Button type="button" onClick={() => setShowCreate(true)}>
-            <Plus size={15} aria-hidden="true" />
-            Nuevo producto
-          </Button>
-        </div>
+        <Button type="button" onClick={irACrear}>
+          <Plus size={15} aria-hidden="true" />
+          Nuevo producto
+        </Button>
       </div>
 
       {/* Filtros */}
@@ -1632,11 +711,7 @@ export function ProductsPage(): React.ReactElement {
         {status === 'loading' && <TableSkeleton />}
         {status === 'error' && <ErrorState onRetry={reload} />}
         {status === 'ready' && productos.length === 0 && (
-          <EmptyState
-            filtered={hayFiltros}
-            onCreate={() => setShowCreate(true)}
-            onClear={clearFilters}
-          />
+          <EmptyState filtered={hayFiltros} onCreate={irACrear} onClear={clearFilters} />
         )}
 
         {status === 'ready' && productos.length > 0 && (
@@ -1649,7 +724,7 @@ export function ProductsPage(): React.ReactElement {
                     <ProductRow
                       key={grupo.key}
                       producto={grupo.items[0]}
-                      onEdit={setEditing}
+                      onEdit={irAEditar}
                       onAdjust={setAdjusting}
                       onToggleActivo={toggleActivo}
                       toggling={togglingId === grupo.items[0].id}
@@ -1660,6 +735,7 @@ export function ProductsPage(): React.ReactElement {
                         grupo={grupo}
                         expandido={expandidos.has(grupo.key)}
                         onToggle={() => toggleExpandido(grupo.key)}
+                        onEditModelo={irAEditarGrupo}
                       />
                       {expandidos.has(grupo.key) &&
                         grupo.items.map(p => (
@@ -1667,7 +743,7 @@ export function ProductsPage(): React.ReactElement {
                             key={p.id}
                             producto={p}
                             indent
-                            onEdit={setEditing}
+                            onEdit={irAEditar}
                             onAdjust={setAdjusting}
                             onToggleActivo={toggleActivo}
                             toggling={togglingId === p.id}
@@ -1688,19 +764,6 @@ export function ProductsPage(): React.ReactElement {
         </p>
       )}
 
-      {showCreate && (
-        <CreateProductModal onClose={() => setShowCreate(false)} onCreated={handleCreated} />
-      )}
-      {showMatriz && (
-        <MatrizVariantesModal onClose={() => setShowMatriz(false)} onCreated={handleMatrizCreated} />
-      )}
-      {editing && (
-        <EditProductModal
-          producto={editing}
-          onClose={() => setEditing(null)}
-          onUpdated={handleUpdated}
-        />
-      )}
       {adjusting && (
         <AdjustStockModal
           producto={adjusting}

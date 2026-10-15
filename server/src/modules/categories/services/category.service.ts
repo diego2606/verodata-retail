@@ -14,12 +14,25 @@ import {
   resolverAtributosEfectivos,
   resolverValoresSugeridos,
 } from '../../../shared/utils/atributosEfectivos';
+import {
+  atributoRepository,
+  AtributoRow,
+} from '../../atributos/repositories/atributo.repository';
 import { ApiFailure, ApiResponse } from '../../../shared/types/api.types';
 
 /** Categoría + atributos/valores efectivos para el formulario de productos. */
 export interface CategoriaConAtributos extends CategoriaRow {
   atributos_sugeridos: string[];
   valores_sugeridos: AtributosValores;
+}
+
+/** Atributo efectivo de una categoría con sus valores del maestro (HU035). */
+export interface AtributoCategoriaItem {
+  codigo: string;
+  nombre: string;
+  tipo: AtributoRow['tipo'];
+  unidad: string | null;
+  valores: Array<{ valor: string; slug: string; hex: string | null }>;
 }
 
 function fallo(code: string, message: string, details: unknown = null): ApiFailure {
@@ -227,5 +240,37 @@ export const categoryService = {
   async reordenar(ids: number[]): Promise<ApiResponse<{ ids: number[] }>> {
     await categoryRepository.reordenar(ids);
     return { success: true, message: 'Orden actualizado correctamente', data: { ids } };
+  },
+
+  /**
+   * HU035: atributos efectivos de la categoría (con herencia, HU029) junto con
+   * sus valores del maestro, para habilitar los ejes de variante del producto.
+   */
+  async obtenerAtributos(id: number): Promise<ApiResponse<AtributoCategoriaItem[]>> {
+    const cadena = await categoryRepository.obtenerCadenaAtributos(id);
+    if (!cadena) {
+      return fallo('RESOURCE_NOT_FOUND', 'La categoría con el ID especificado no existe');
+    }
+    const codigos = resolverAtributosEfectivos(cadena.cadenas, cadena.nombre);
+    const [atributos, valores] = await Promise.all([
+      atributoRepository.listarAtributos(),
+      atributoRepository.listarValores(),
+    ]);
+    const porCodigo = new Map(atributos.map((a) => [a.codigo, a]));
+
+    const data: AtributoCategoriaItem[] = codigos
+      .map((codigo) => porCodigo.get(codigo))
+      .filter((a): a is AtributoRow => Boolean(a))
+      .map((a) => ({
+        codigo: a.codigo,
+        nombre: a.nombre,
+        tipo: a.tipo,
+        unidad: a.unidad,
+        valores: valores
+          .filter((v) => v.atributo_id === a.id && v.activo)
+          .map((v) => ({ valor: v.valor, slug: v.slug, hex: v.hex })),
+      }));
+
+    return { success: true, message: 'Atributos de la categoría obtenidos correctamente', data };
   },
 };

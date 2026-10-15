@@ -8,13 +8,16 @@ import type { AgregarImagenPayload, ProductoImagen } from '../../types/product.t
 
 interface ProductImagesGalleryProps {
   productoId: string;
+  /** Ruta base de las imágenes. Por defecto, la de un SKU: `/api/v1/products/:id/images`. */
+  basePath?: string;
   /** Notifica cambios para que el producto recargue su portada si hace falta. */
   onChanged?: () => void;
 }
 
-/** HU033: gestión de la galería (principal + vistas) de un producto. */
+/** HU033: gestión de la galería (principal + vistas) de un producto o modelo. */
 export function ProductImagesGallery({
   productoId,
+  basePath,
   onChanged,
 }: ProductImagesGalleryProps): React.ReactElement {
   const [imagenes, setImagenes] = useState<ProductoImagen[]>([]);
@@ -25,12 +28,13 @@ export function ProductImagesGallery({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const base = basePath ?? `/api/v1/products/${productoId}/images`;
 
   useEffect(() => {
     let active = true;
     setStatus('loading');
     apiClient
-      .get<ProductoImagen[]>(`/api/v1/products/${productoId}/images`)
+      .get<ProductoImagen[]>(base)
       .then(json => {
         if (!active) return;
         if (!json.success) {
@@ -46,7 +50,7 @@ export function ProductImagesGallery({
     return () => {
       active = false;
     };
-  }, [productoId, reloadKey]);
+  }, [base, reloadKey]);
 
   const reload = useCallback((): void => {
     setReloadKey(k => k + 1);
@@ -59,7 +63,7 @@ export function ProductImagesGallery({
       setIsAdding(true);
       try {
         const json = await apiClient.post<ProductoImagen>(
-          `/api/v1/products/${productoId}/images`,
+          base,
           payload
         );
         if (!json.success) {
@@ -74,7 +78,7 @@ export function ProductImagesGallery({
         setIsAdding(false);
       }
     },
-    [productoId, reload]
+    [base, reload]
   );
 
   const onArchivo = useCallback(
@@ -98,7 +102,7 @@ export function ProductImagesGallery({
       setBusyId(imagenId);
       setError(null);
       try {
-        const json = await apiClient.patch(`/api/v1/products/${productoId}/images/${imagenId}/principal`, {});
+        const json = await apiClient.patch(`${base}/${imagenId}/principal`, {});
         if (!json.success) {
           setError(json.error.message);
           return;
@@ -110,7 +114,7 @@ export function ProductImagesGallery({
         setBusyId(null);
       }
     },
-    [productoId, reload]
+    [base, reload]
   );
 
   const eliminar = useCallback(
@@ -118,7 +122,7 @@ export function ProductImagesGallery({
       setBusyId(imagenId);
       setError(null);
       try {
-        const json = await apiClient.delete(`/api/v1/products/${productoId}/images/${imagenId}`);
+        const json = await apiClient.delete(`${base}/${imagenId}`);
         if (!json.success) {
           setError(json.error.message);
           return;
@@ -130,7 +134,7 @@ export function ProductImagesGallery({
         setBusyId(null);
       }
     },
-    [productoId, reload]
+    [base, reload]
   );
 
   const mover = useCallback(
@@ -141,14 +145,14 @@ export function ProductImagesGallery({
       const b = imagenes[destino];
       setError(null);
       try {
-        await apiClient.patch(`/api/v1/products/${productoId}/images/${a.id}`, { orden: b.orden });
-        await apiClient.patch(`/api/v1/products/${productoId}/images/${b.id}`, { orden: a.orden });
+        await apiClient.patch(`${base}/${a.id}`, { orden: b.orden });
+        await apiClient.patch(`${base}/${b.id}`, { orden: a.orden });
         reload();
       } catch (e) {
         setError(e instanceof ApiClientError ? e.message : 'Error al reordenar');
       }
     },
-    [imagenes, productoId, reload]
+    [imagenes, base, reload]
   );
 
   return (
