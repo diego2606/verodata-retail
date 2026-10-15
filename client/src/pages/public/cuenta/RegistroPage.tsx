@@ -75,7 +75,7 @@ export function RegistroPage(): React.ReactElement {
       // Registro directo: iniciamos sesión automáticamente.
       const sesion = await cuentaApi.login({ email: email.trim(), password, recordar: true });
       if (!sesion.success) {
-        navigate('/cuenta/ingresar', { replace: true });
+        abrirLogin();
         return;
       }
       login(
