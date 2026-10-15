@@ -1,4 +1,4 @@
-import { SKU_SEGMENTOS, type SkuSegmento } from '../constants/atributos';
+import { SKU_SEGMENTOS, SKU_TOKENS_NUMERICOS, type SkuSegmento } from '../constants/atributos';
 
 /** Quita acentos y todo lo que no sea alfanumérico, en mayúsculas. */
 function alfanumerico(valor: string): string {
@@ -22,10 +22,13 @@ export function codigoSegmento(
   if (token === 'CATEGORIA') return alfanumerico(prefijo ?? '').slice(0, 6);
   const valor = atributos[token] ?? '';
   if (!valor) return '';
-  if (token === 'STORAGE_CAPACITY') return soloDigitos(valor).slice(0, 6) || alfanumerico(valor).slice(0, 3);
+  // Capacidades/almacenamiento: manda la parte numérica ("256 GB" → 256).
+  if (SKU_TOKENS_NUMERICOS.has(token)) {
+    return soloDigitos(valor).slice(0, 6) || alfanumerico(valor).slice(0, 3);
+  }
   if (token === 'BRAND') return alfanumerico(valor).slice(0, 2);
   if (token === 'MODEL') return alfanumerico(valor).slice(0, 12);
-  // COLOR, SIZE, CAPACITY, GENDER, LINE → 2-3 caracteres.
+  // COLOR, SIZE, TALLA_CALZADO, GENDER, LINE → 2-3 caracteres.
   return alfanumerico(valor).slice(0, 3);
 }
 

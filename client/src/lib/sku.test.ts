@@ -84,4 +84,27 @@ describe('generarSkuEstructurado (HU031, espejo del backend)', () => {
     expect(generarSkuEstructurado(null, null, {})).toBe('');
     expect(generarSkuEstructurado(undefined, null, {})).toBe('');
   });
+
+  it('usa solo los dígitos en las capacidades numéricas (HU036)', () => {
+    expect(
+      generarSkuEstructurado(['CATEGORIA', 'COLOR', 'CAPACIDAD_LITROS'], 'REF', {
+        COLOR: 'Blanco',
+        CAPACIDAD_LITROS: '250 L',
+      })
+    ).toBe('REF-BLA-250');
+
+    expect(
+      generarSkuEstructurado(['CATEGORIA', 'TALLA_CALZADO', 'COLOR'], 'ZAP', {
+        TALLA_CALZADO: '42',
+        COLOR: 'Negro',
+      })
+    ).toBe('ZAP-42-NEG');
+
+    expect(
+      generarSkuEstructurado(['CONTENIDO_ML', 'CAPACIDAD_KG'], null, {
+        CONTENIDO_ML: '100 ml',
+        CAPACIDAD_KG: '10 kg',
+      })
+    ).toBe('100-10');
+  });
 });
