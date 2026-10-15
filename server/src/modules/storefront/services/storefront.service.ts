@@ -3,6 +3,7 @@ import {
   CatalogoFila,
   CategoriaPublicaFila,
   BannerVigenteRow,
+  ColorFila,
 } from '../repositories/storefront.repository';
 import { ListarCatalogoQuery } from '../schemas/storefront.schemas';
 import { ApiFailure, ApiResponse } from '../../../shared/types/api.types';
@@ -231,6 +232,12 @@ export const storefrontService = {
         destacados: agruparCatalogo(destacadosFilas).slice(0, 8),
       },
     };
+  },
+
+  /** Colores activos para los swatches del Storefront. */
+  async colores(): Promise<ApiResponse<ColorFila[]>> {
+    const colores = await storefrontRepository.listarColoresActivos();
+    return { success: true, message: 'Colores obtenidos correctamente', data: colores };
   },
 
   /** HU013: detalle de una ficha pública con sus variantes hermanas. */

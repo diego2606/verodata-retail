@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ImageOff, RefreshCcw, ShieldCheck, Truck } from 'lucide-react';
 import { useApiData } from '../../lib/useApiData';
 import { formatearPrecio } from '../../lib/storefront';
+import { useColores } from '../../context/ColoresContext';
 import { Button } from '../../components/ui/Button';
 import { EstadoError } from '../../components/storefront/Estados';
 import type { DetalleProducto, ProductoPublico } from '../../types/storefront.types';
@@ -56,6 +57,7 @@ interface DetalleProps {
 function Detalle({ producto, variantes }: DetalleProps): React.ReactElement {
   const enOferta = producto.descuento_pct > 0 && producto.precio_oferta !== null;
   const atributos = descripcionAtributos(producto);
+  const { hexDeColor } = useColores();
 
   return (
     <div className="grid gap-xl md:grid-cols-2">
@@ -116,15 +118,25 @@ function Detalle({ producto, variantes }: DetalleProps): React.ReactElement {
           <div className="flex flex-col gap-sm">
             <span className="text-sm font-semibold text-store-ink">Otras variantes</span>
             <div className="flex flex-wrap gap-sm">
-              {variantes.map((variante) => (
-                <Link
-                  key={variante.id}
-                  to={`/producto/${variante.id}`}
-                  className="rounded-full border border-store-line bg-store-surface px-md py-xs text-xs text-store-ink-soft transition-colors hover:border-store-ink hover:text-store-ink"
-                >
-                  {descripcionAtributos(variante) || variante.sku}
-                </Link>
-              ))}
+              {variantes.map((variante) => {
+                const hex = hexDeColor(variante.atributos.COLOR);
+                return (
+                  <Link
+                    key={variante.id}
+                    to={`/producto/${variante.id}`}
+                    className="inline-flex items-center gap-xs rounded-full border border-store-line bg-store-surface px-md py-xs text-xs text-store-ink-soft transition-colors hover:border-store-ink hover:text-store-ink"
+                  >
+                    {hex && (
+                      <span
+                        className="h-2.5 w-2.5 rounded-full border border-store-line"
+                        style={{ backgroundColor: hex }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    {descripcionAtributos(variante) || variante.sku}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}

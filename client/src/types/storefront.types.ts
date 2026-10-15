@@ -40,6 +40,13 @@ export interface DetalleProducto {
   variantes: ProductoPublico[];
 }
 
+/** Color activo para los swatches (GET /storefront/colors). */
+export interface ColorSwatch {
+  nombre: string;
+  slug: string;
+  hex: string;
+}
+
 /** HU034: banner vigente que consume la portada. */
 export interface BannerPublico {
   id: string;

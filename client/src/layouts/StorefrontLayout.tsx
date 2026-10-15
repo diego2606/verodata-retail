@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { ChevronDown, MapPin, Menu, Search, ShoppingBag, User } from 'lucide-react';
+import { ColoresProvider } from '../context/ColoresContext';
 
 const CONTENEDOR = 'mx-auto w-full max-w-[1200px] px-lg';
 
@@ -94,7 +95,9 @@ export function StorefrontLayout(): React.ReactElement {
       </header>
 
       <main className="flex-1">
-        <Outlet />
+        <ColoresProvider>
+          <Outlet />
+        </ColoresProvider>
       </main>
 
       <footer className="mt-huge border-t border-store-line bg-store-surface">

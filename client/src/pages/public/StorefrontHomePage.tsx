@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CreditCard, RefreshCcw, Truck, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, CreditCard, RefreshCcw, Truck, Wallet, type LucideIcon } from 'lucide-react';
+import { cn } from '../../lib/utils';
 import { useApiData } from '../../lib/useApiData';
 import { aplanarCategorias } from '../../lib/storefront';
 import { ProductCard } from '../../components/storefront/ProductCard';
+import { VitrinaDepartamentos } from '../../components/storefront/VitrinaDepartamentos';
 import { EstadoError, GrillaSkeleton } from '../../components/storefront/Estados';
 import type { BannerPublico, HomeData, ProductoPublico } from '../../types/storefront.types';
 import type { FranjaConfianza } from '../../types/banner.types';
@@ -48,7 +50,7 @@ export function StorefrontHomePage(): React.ReactElement {
         <>
           {data.banners.ticker.length > 0 && <Ticker banner={data.banners.ticker[0]} />}
 
-          <Hero banner={data.banners.hero[0] ?? null} />
+          <Hero banners={data.banners.hero} />
 
           {data.categorias.length > 0 && (
             <section className="flex flex-wrap gap-sm">
@@ -69,6 +71,7 @@ export function StorefrontHomePage(): React.ReactElement {
 
           {data.destacados.length > 0 && <Vitrina titulo="Destacados" productos={data.destacados} />}
           {data.ofertas.length > 0 && <Vitrina titulo="Ofertas de la semana" productos={data.ofertas} />}
+          {data.categorias.length > 0 && <VitrinaDepartamentos categorias={data.categorias} />}
           <Vitrina titulo="Nuevos ingresos" productos={data.nuevos} />
 
           {data.banners.banda.length > 0 && <BandaEditorial banner={data.banners.banda[0]} />}
@@ -103,8 +106,10 @@ function Ticker({ banner }: { banner: BannerPublico }): React.ReactElement {
   );
 }
 
-function Hero({ banner }: { banner: BannerPublico | null }): React.ReactElement {
-  if (!banner) {
+function Hero({ banners }: { banners: BannerPublico[] }): React.ReactElement {
+  const [indice, setIndice] = useState(0);
+
+  if (banners.length === 0) {
     return (
       <section className="overflow-hidden rounded-lg bg-store-ink px-xl py-huge text-white">
         <div className="flex max-w-[560px] flex-col gap-md">
@@ -121,8 +126,13 @@ function Hero({ banner }: { banner: BannerPublico | null }): React.ReactElement 
     );
   }
 
+  const total = banners.length;
+  const actual = Math.min(indice, total - 1);
+  const banner = banners[actual];
+  const ir = (n: number): void => setIndice((n + total) % total);
+
   return (
-    <section className="relative overflow-hidden rounded-lg">
+    <section className="relative overflow-hidden rounded-lg" aria-roledescription="carrusel">
       <img src={banner.imagen_url} alt="" className="h-[320px] w-full object-cover md:h-[400px]" />
       <div className="absolute inset-0 flex flex-col justify-center gap-md bg-ink/50 p-xl text-white">
         <h1 className="max-w-[560px] text-display-lg font-semibold">{banner.titulo}</h1>
@@ -135,6 +145,39 @@ function Hero({ banner }: { banner: BannerPublico | null }): React.ReactElement 
           </div>
         )}
       </div>
+
+      {total > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => ir(actual - 1)}
+            aria-label="Banner anterior"
+            className="absolute left-md top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-store-ink transition-colors hover:bg-white"
+          >
+            <ChevronLeft size={18} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => ir(actual + 1)}
+            aria-label="Banner siguiente"
+            className="absolute right-md top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-store-ink transition-colors hover:bg-white"
+          >
+            <ChevronRight size={18} aria-hidden="true" />
+          </button>
+          <div className="absolute bottom-md left-1/2 flex -translate-x-1/2 gap-sm">
+            {banners.map((item, i) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setIndice(i)}
+                aria-label={`Ir al banner ${i + 1}`}
+                aria-current={i === actual}
+                className={cn('h-2 rounded-full transition-all', i === actual ? 'w-6 bg-white' : 'w-2 bg-white/60')}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </section>
   );
 }

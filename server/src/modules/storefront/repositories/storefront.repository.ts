@@ -46,6 +46,13 @@ export interface ConfigFila {
   valor: unknown;
 }
 
+/** Color activo para los swatches del Storefront. */
+export interface ColorFila {
+  nombre: string;
+  slug: string;
+  hex: string;
+}
+
 /**
  * HU013 CA01: solo productos activos pertenecientes a categorías activas.
  * El filtro por categoría incluye sus descendientes (consulta recursiva, HU025).
@@ -151,6 +158,14 @@ export const storefrontRepository = {
        WHERE p.activo = TRUE AND c.activo = TRUE AND p.destacado = TRUE
        ORDER BY p.destacado_orden ASC NULLS LAST, p.creado_en DESC
        LIMIT 12`
+    );
+    return result.rows;
+  },
+
+  /** Colores activos (nombre + hex) para los swatches de la tienda. */
+  async listarColoresActivos(): Promise<ColorFila[]> {
+    const result = await pool.query<ColorFila>(
+      `SELECT nombre, slug, hex FROM colores WHERE activo = TRUE ORDER BY nombre ASC`
     );
     return result.rows;
   },

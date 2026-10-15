@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ImageOff } from 'lucide-react';
 import { formatearPrecio } from '../../lib/storefront';
+import { useColores } from '../../context/ColoresContext';
 import type { ProductoPublico } from '../../types/storefront.types';
 
 interface ProductCardProps {
@@ -11,6 +12,9 @@ interface ProductCardProps {
 /** Tarjeta de producto del Storefront (HU013 CA02/CA03). */
 export function ProductCard({ producto }: ProductCardProps): React.ReactElement {
   const enOferta = producto.descuento_pct > 0 && producto.precio_oferta !== null;
+  const { hexDeColor } = useColores();
+  const colorNombre = producto.atributos.COLOR;
+  const colorHex = hexDeColor(colorNombre);
 
   return (
     <Link
@@ -49,6 +53,17 @@ export function ProductCard({ producto }: ProductCardProps): React.ReactElement 
           {producto.categoria_nombre}
         </span>
         <h3 className="line-clamp-2 text-sm font-medium text-store-ink">{producto.nombre}</h3>
+
+        {colorNombre && colorHex && (
+          <span className="flex items-center gap-xs text-xs text-store-ink-mute">
+            <span
+              className="h-3 w-3 shrink-0 rounded-full border border-store-line"
+              style={{ backgroundColor: colorHex }}
+              aria-hidden="true"
+            />
+            {colorNombre}
+          </span>
+        )}
 
         <div className="mt-auto flex items-baseline gap-sm pt-sm">
           {enOferta && producto.precio_oferta !== null ? (

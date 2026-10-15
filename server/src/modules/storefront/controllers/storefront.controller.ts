@@ -56,6 +56,16 @@ export const storefrontController = {
     }
   },
 
+  async listarColores(_req: Request, res: Response): Promise<void> {
+    try {
+      const result = await storefrontService.colores();
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('[StorefrontController] listarColores error:', error);
+      res.status(500).json(internalError());
+    }
+  },
+
   async detalleProducto(req: Request, res: Response): Promise<void> {
     try {
       const params = productoIdParamSchema.safeParse(req.params);
