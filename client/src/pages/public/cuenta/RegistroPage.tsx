@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import {
@@ -10,6 +10,7 @@ import {
   LABEL_STORE,
 } from '../../../components/storefront/CuentaCard';
 import { useAuth } from '../../../context/AuthContext';
+import { useLoginModal } from '../../../context/LoginModalContext';
 import { cuentaApi } from '../../../lib/cuenta';
 import { ApiClientError } from '../../../lib/apiClient';
 import type { TipoDocumento } from '../../../types/cuenta.types';
@@ -25,6 +26,7 @@ const TIPOS: Array<{ value: TipoDocumento; label: string }> = [
 
 export function RegistroPage(): React.ReactElement {
   const { login } = useAuth();
+  const { abrirLogin } = useLoginModal();
   const navigate = useNavigate();
 
   const [tipoDocumento, setTipoDocumento] = useState<TipoDocumento>('DNI');
@@ -170,9 +172,9 @@ export function RegistroPage(): React.ReactElement {
 
       <p className="mt-lg text-center text-sm text-store-ink-soft">
         ¿Ya tienes cuenta?{' '}
-        <Link to="/cuenta/ingresar" className="font-medium text-store-accent hover:underline">
+        <button type="button" onClick={abrirLogin} className="font-medium text-store-accent hover:underline">
           Ingresa
-        </Link>
+        </button>
       </p>
     </CuentaCard>
   );

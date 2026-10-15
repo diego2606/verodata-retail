@@ -1,25 +1,24 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ShieldAlert, X } from 'lucide-react';
-import { Input } from '../../../components/ui/Input';
-import { Button } from '../../../components/ui/Button';
-import { Modal } from '../../../components/ui/Modal';
-import {
-  CuentaCard,
-  Alerta,
-  BOTON_STORE,
-  INPUT_STORE,
-  LABEL_STORE,
-} from '../../../components/storefront/CuentaCard';
-import { useAuth } from '../../../context/AuthContext';
-import { cuentaApi } from '../../../lib/cuenta';
-import { ApiClientError } from '../../../lib/apiClient';
+import { Link } from 'react-router-dom';
+import { ShieldAlert } from 'lucide-react';
+import { Input } from '../ui/Input';
+import { Button } from '../ui/Button';
+import { Modal } from '../ui/Modal';
+import { Alerta, BOTON_STORE, INPUT_STORE, LABEL_STORE } from './CuentaCard';
+import { useAuth } from '../../context/AuthContext';
+import { cuentaApi } from '../../lib/cuenta';
+import { ApiClientError } from '../../lib/apiClient';
 
 const MAX_INTENTOS = 3;
 
-export function LoginClientePage(): React.ReactElement {
+interface LoginClienteFormProps {
+  /** Cierra el modal contenedor (tras iniciar sesión o al navegar a otra pantalla). */
+  onCerrar: () => void;
+}
+
+/** Formulario de acceso del cliente (se usa dentro del modal del header). */
+export function LoginClienteForm({ onCerrar }: LoginClienteFormProps): React.ReactElement {
   const { login } = useAuth();
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [recordar, setRecordar] = useState(true);
@@ -48,7 +47,7 @@ export function LoginClientePage(): React.ReactElement {
         },
         recordar
       );
-      navigate('/cuenta/perfil', { replace: true });
+      onCerrar();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'No se pudo iniciar sesión');
     } finally {
@@ -57,7 +56,7 @@ export function LoginClientePage(): React.ReactElement {
   };
 
   return (
-    <CuentaCard titulo="Ingresar a mi cuenta" subtitulo="Gestiona tus pedidos, direcciones y datos.">
+    <>
       <form onSubmit={onSubmit} noValidate className="space-y-md">
         {error && <Alerta tipo="error">{error}</Alerta>}
 
@@ -77,7 +76,11 @@ export function LoginClientePage(): React.ReactElement {
         <div>
           <div className="flex items-center justify-between">
             <label htmlFor="login-password" className={LABEL_STORE}>Contraseña</label>
-            <Link to="/cuenta/recuperar" className="mb-xs text-xs font-medium text-store-accent hover:underline">
+            <Link
+              to="/cuenta/recuperar"
+              onClick={onCerrar}
+              className="mb-xs text-xs font-medium text-store-accent hover:underline"
+            >
               ¿Olvidaste tu contraseña?
             </Link>
           </div>
@@ -109,7 +112,7 @@ export function LoginClientePage(): React.ReactElement {
 
       <p className="mt-lg text-center text-sm text-store-ink-soft">
         ¿No tienes cuenta?{' '}
-        <Link to="/cuenta/registro" className="font-medium text-store-accent hover:underline">
+        <Link to="/cuenta/registro" onClick={onCerrar} className="font-medium text-store-accent hover:underline">
           Regístrate
         </Link>
       </p>
@@ -124,7 +127,7 @@ export function LoginClientePage(): React.ReactElement {
               </h2>
             </div>
             <Button type="button" variant="ghost" size="icon" onClick={() => setBloqueo(false)} aria-label="Cerrar">
-              <X size={15} aria-hidden="true" />
+              <span aria-hidden="true">×</span>
             </Button>
           </div>
 
@@ -137,7 +140,10 @@ export function LoginClientePage(): React.ReactElement {
           <div className="mt-lg flex flex-col gap-sm">
             <Link
               to="/cuenta/recuperar"
-              onClick={() => setBloqueo(false)}
+              onClick={() => {
+                setBloqueo(false);
+                onCerrar();
+              }}
               className="inline-flex h-9 items-center justify-center rounded-xs bg-primary px-sm text-sm font-medium text-on-primary"
             >
               ¿Olvidaste tu contraseña?
@@ -148,8 +154,8 @@ export function LoginClientePage(): React.ReactElement {
           </div>
         </Modal>
       )}
-    </CuentaCard>
+    </>
   );
 }
 
-export default LoginClientePage;
+export default LoginClienteForm;

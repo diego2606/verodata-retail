@@ -11,10 +11,12 @@ import {
 } from '../../../components/storefront/CuentaCard';
 import { cuentaApi } from '../../../lib/cuenta';
 import { ApiClientError } from '../../../lib/apiClient';
+import { useLoginModal } from '../../../context/LoginModalContext';
 
 export function RestablecerPage(): React.ReactElement {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { abrirLogin } = useLoginModal();
   const token = params.get('token') ?? '';
 
   const [password, setPassword] = useState('');
@@ -37,7 +39,8 @@ export function RestablecerPage(): React.ReactElement {
         setError(json.error.message);
         return;
       }
-      navigate('/cuenta/ingresar', { replace: true });
+      navigate('/', { replace: true });
+      abrirLogin();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'No se pudo restablecer la contraseña');
     } finally {

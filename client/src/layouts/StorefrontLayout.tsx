@@ -3,6 +3,7 @@ import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { ChevronDown, MapPin, Menu, Search, ShoppingBag, User } from 'lucide-react';
 import { ColoresProvider } from '../context/ColoresContext';
 import { useAuth } from '../context/AuthContext';
+import { useLoginModal } from '../context/LoginModalContext';
 
 const CONTENEDOR = 'mx-auto w-full max-w-[1200px] px-lg';
 
@@ -13,6 +14,7 @@ const CONTENEDOR = 'mx-auto w-full max-w-[1200px] px-lg';
 export function StorefrontLayout(): React.ReactElement {
   const navigate = useNavigate();
   const { isAuthenticated, usuario, logout } = useAuth();
+  const { abrirLogin } = useLoginModal();
   const [busqueda, setBusqueda] = useState('');
 
   function buscar(event: React.FormEvent<HTMLFormElement>): void {
@@ -44,7 +46,7 @@ export function StorefrontLayout(): React.ReactElement {
               <button type="button" onClick={cerrarSesion} className="hover:text-store-ink">Salir</button>
             </div>
           ) : (
-            <Link to="/cuenta/ingresar" className="font-medium hover:text-store-accent">Ingresar</Link>
+            <button type="button" onClick={abrirLogin} className="font-medium hover:text-store-accent">Ingresar</button>
           )}
         </div>
       </div>
@@ -77,13 +79,24 @@ export function StorefrontLayout(): React.ReactElement {
           </form>
 
           <div className="ml-auto flex items-center gap-lg">
-            <Link
-              to={isAuthenticated ? '/cuenta/perfil' : '/cuenta/ingresar'}
-              className="hidden items-center gap-sm text-sm text-store-ink-soft hover:text-store-ink lg:flex"
-            >
-              <User size={18} aria-hidden="true" />
-              {isAuthenticated && usuario ? `Hola, ${usuario.nombre ?? usuario.email}` : 'Hola, invitado'}
-            </Link>
+            {isAuthenticated && usuario ? (
+              <Link
+                to="/cuenta/perfil"
+                className="hidden items-center gap-sm text-sm text-store-ink-soft hover:text-store-ink lg:flex"
+              >
+                <User size={18} aria-hidden="true" />
+                Hola, {usuario.nombre ?? usuario.email}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={abrirLogin}
+                className="hidden items-center gap-sm text-sm text-store-ink-soft hover:text-store-ink lg:flex"
+              >
+                <User size={18} aria-hidden="true" />
+                Hola, invitado
+              </button>
+            )}
             <Link to="/catalogo" className="relative flex items-center" aria-label="Bolsa de compras">
               <ShoppingBag size={22} aria-hidden="true" />
               <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-store-accent px-xs text-xs font-semibold text-white">

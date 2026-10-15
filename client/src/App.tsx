@@ -11,7 +11,7 @@ import { StorefrontHomePage } from './pages/public/StorefrontHomePage';
 import { CatalogPage } from './pages/public/CatalogPage';
 import { ProductDetailPage } from './pages/public/ProductDetailPage';
 import { ClienteRoute } from './router/ClienteRoute';
-import { LoginClientePage } from './pages/public/cuenta/LoginClientePage';
+import { LoginModalProvider } from './context/LoginModalContext';
 import { RegistroPage } from './pages/public/cuenta/RegistroPage';
 import { RecuperarPage } from './pages/public/cuenta/RecuperarPage';
 import { RestablecerPage } from './pages/public/cuenta/RestablecerPage';
@@ -29,6 +29,7 @@ function App(): React.ReactElement {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <LoginModalProvider>
         <Routes>
           {/* Storefront público (HU013) */}
           <Route element={<StorefrontLayout />}>
@@ -36,8 +37,7 @@ function App(): React.ReactElement {
             <Route path="/catalogo" element={<CatalogPage />} />
             <Route path="/producto/:id" element={<ProductDetailPage />} />
 
-            {/* Cuenta de cliente (registro, login, recuperación) */}
-            <Route path="/cuenta/ingresar" element={<LoginClientePage />} />
+            {/* Cuenta de cliente (registro y recuperación) */}
             <Route path="/cuenta/registro" element={<RegistroPage />} />
             <Route path="/cuenta/recuperar" element={<RecuperarPage />} />
             <Route path="/cuenta/restablecer" element={<RestablecerPage />} />
@@ -89,6 +89,7 @@ function App(): React.ReactElement {
           {/* 404 — cualquier ruta no definida vuelve al Storefront */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </LoginModalProvider>
       </AuthProvider>
     </BrowserRouter>
   );

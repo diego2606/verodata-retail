@@ -1,10 +1,16 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLoginModal } from '../context/LoginModalContext';
 
-/** Guarda de las rutas de cuenta del cliente (/cuenta/*). */
+/** Guarda las rutas de cuenta del cliente (/cuenta/*). Si no hay sesión, abre el modal de acceso. */
 export function ClienteRoute(): React.ReactElement {
   const { isAuthenticated, isLoading } = useAuth();
+  const { abrirLogin } = useLoginModal();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) abrirLogin();
+  }, [isLoading, isAuthenticated, abrirLogin]);
 
   if (isLoading) {
     return (
@@ -14,7 +20,7 @@ export function ClienteRoute(): React.ReactElement {
     );
   }
 
-  if (!isAuthenticated) return <Navigate to="/cuenta/ingresar" replace />;
+  if (!isAuthenticated) return <Navigate to="/" replace />;
 
   return <Outlet />;
 }

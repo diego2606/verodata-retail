@@ -11,8 +11,10 @@ import {
 } from '../../../components/storefront/CuentaCard';
 import { cuentaApi } from '../../../lib/cuenta';
 import { ApiClientError } from '../../../lib/apiClient';
+import { useLoginModal } from '../../../context/LoginModalContext';
 
 export function RecuperarPage(): React.ReactElement {
+  const { abrirLogin } = useLoginModal();
   const [email, setEmail] = useState('');
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -83,9 +85,9 @@ export function RecuperarPage(): React.ReactElement {
       </form>
 
       <p className="mt-lg text-center text-sm text-store-ink-soft">
-        <Link to="/cuenta/ingresar" className="font-medium text-store-accent hover:underline">
+        <button type="button" onClick={abrirLogin} className="font-medium text-store-accent hover:underline">
           Volver a ingresar
-        </Link>
+        </button>
       </p>
     </CuentaCard>
   );
