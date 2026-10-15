@@ -85,6 +85,9 @@ cp client/.env.example client/.env
 | `JWT_REMEMBER_EXPIRES_IN` | Vigencia del token con "Recordarme" (ej. `30d`) |
 | `BCRYPT_ROUNDS` | Costo del hash (mínimo `10`) |
 | `CLIENT_URL` | Origen permitido por CORS |
+| `ML_CLIENT_ID` / `ML_CLIENT_SECRET` | App de Mercado Libre (para importar catálogo) |
+| `ML_ACCESS_TOKEN` | Token de ML; lo genera/actualiza `npm run ml:token` |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` | Storage de Supabase para las imágenes importadas |
 
 **`client/.env`**
 
@@ -102,6 +105,9 @@ server/database/setup.sql
 
 # Migraciones incrementales (en orden)
 server/database/migrations/*.sql
+
+# Catálogo de ejemplo — categorías, productos e inventario (opcional)
+server/database/seeds/catalogo.sql
 ```
 
 Super Admin inicial del seed:
@@ -133,6 +139,8 @@ cd client && npm run dev
 | `npm run build` | Compila TypeScript a `dist/` |
 | `npm start` | Ejecuta el build de producción |
 | `npm test` | Ejecuta la suite de pruebas (Vitest) |
+| `npm run ml:token` | Obtiene/renueva el `ML_ACCESS_TOKEN` de Mercado Libre |
+| `npm run ml:import` | Importa catálogo de ML (categorías, productos, imágenes a Supabase). Con `RESET=1` limpia el catálogo antes |
 
 **Frontend (`client/`)**
 
@@ -160,12 +168,15 @@ Todas las respuestas usan el envelope `{ success, data, message }` o
 | GET | `/api/v1/users/:id` | SUPER_ADMIN | Consulta unitaria |
 | PATCH | `/api/v1/users/:id` | SUPER_ADMIN | Actualización de datos |
 | PATCH | `/api/v1/users/:id/bloqueo` | SUPER_ADMIN | Bloquear / desbloquear |
-| GET | `/api/v1/categories` | ADMIN / SUPER_ADMIN | Listado de categorías |
-| POST | `/api/v1/categories` | ADMIN / SUPER_ADMIN | Crear categoría |
-| PATCH | `/api/v1/categories/:id` | ADMIN / SUPER_ADMIN | Editar / activar / desactivar |
-| DELETE | `/api/v1/categories/:id` | ADMIN / SUPER_ADMIN | Eliminar (bloqueado si tiene productos) |
-| GET | `/api/v1/products` | ADMIN / SUPER_ADMIN | Listado de productos (filtros `search`, `categoria_id`, `activo`) |
-| POST | `/api/v1/products` | ADMIN / SUPER_ADMIN | Crear producto (SKU único + inventario inicial 0/5) |
+| GET | `/api/v1/categories` | ADMIN / SUPER_ADMIN | Listado de categorías (incluye `categoria_padre_id` y `hijos_count`) |
+| POST | `/api/v1/categories` | ADMIN / SUPER_ADMIN | Crear categoría (padre opcional → subcategoría) |
+| PATCH | `/api/v1/categories/:id` | ADMIN / SUPER_ADMIN | Editar / activar / desactivar / cambiar categoría padre |
+| DELETE | `/api/v1/categories/:id` | ADMIN / SUPER_ADMIN | Eliminar (bloqueado si tiene productos o subcategorías) |
+| GET | `/api/v1/products` | ADMIN / SUPER_ADMIN | Listado de productos (filtros `search`, `categoria_id`, `activo`, `stock_bajo`) |
+| POST | `/api/v1/products` | ADMIN / SUPER_ADMIN | Crear producto (SKU único + inventario 0/5; variante opcional `modelo`/`atributos`) |
+| PATCH | `/api/v1/products/:id` | ADMIN / SUPER_ADMIN | Actualizar ficha, precios y variante |
+| PATCH | `/api/v1/inventory/:productoId` | ADMIN / SUPER_ADMIN | Ajustar stock (`ajuste` con signo) y `stock_minimo` (HU010) |
+| GET | `/api/v1/inventory/alerts` | ADMIN / SUPER_ADMIN | Productos con stock en o bajo el mínimo (HU012) |
 | GET | `/api/v1/status` | Público | Estado del sistema (salud, latencia, conteos) |
 
 ---
