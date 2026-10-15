@@ -1,17 +1,28 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { MapPin, Pencil, Plus, Star, Trash2, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  AlertCircle,
+  LogOut,
+  MapPin,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  Star,
+  Trash2,
+  User,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
-import { Alerta, BOTON_STORE, INPUT_STORE, LABEL_STORE } from '../../../components/storefront/CuentaCard';
+import { Alerta, INPUT_STORE, LABEL_STORE } from '../../../components/storefront/CuentaCard';
 import { useAuth } from '../../../context/AuthContext';
 import { useApiData } from '../../../lib/useApiData';
 import { cuentaApi } from '../../../lib/cuenta';
 import { ApiClientError } from '../../../lib/apiClient';
 import type {
-  ActualizarPerfilPayload,
   DireccionItem,
   DireccionPayload,
   PerfilCliente,
@@ -23,98 +34,257 @@ const SELECT_STORE =
 
 const TIPOS: TipoDocumento[] = ['DNI', 'PASAPORTE', 'CARNET_EXTRANJERIA'];
 
-// ─── Datos personales ─────────────────────────────────────────────────────────
+type SeccionKey = 'datos' | 'direcciones' | 'seguridad';
 
-function DatosPersonales({ perfil }: { perfil: PerfilCliente }): React.ReactElement {
-  const { usuario, actualizarSesion } = useAuth();
-  const [tipoDocumento, setTipoDocumento] = useState<TipoDocumento>(perfil.tipo_documento ?? 'DNI');
-  const [numeroDocumento, setNumeroDocumento] = useState(perfil.numero_documento ?? '');
-  const [nombres, setNombres] = useState(perfil.nombres ?? '');
-  const [apellidos, setApellidos] = useState(perfil.apellidos ?? '');
-  const [telefono, setTelefono] = useState(perfil.telefono ?? '');
-  const [mensaje, setMensaje] = useState<{ tipo: 'exito' | 'error'; texto: string } | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+interface SeccionDef {
+  key: SeccionKey;
+  label: string;
+  icon: LucideIcon;
+}
 
-  const onSubmit = async (event: React.FormEvent): Promise<void> => {
-    event.preventDefault();
-    setMensaje(null);
-    setIsSubmitting(true);
-    const payload: ActualizarPerfilPayload = {
-      nombres: nombres.trim(),
-      apellidos: apellidos.trim(),
-      telefono: telefono.trim() || undefined,
-      tipo_documento: tipoDocumento,
-      numero_documento: numeroDocumento.trim(),
-    };
+const SECCIONES: SeccionDef[] = [
+  { key: 'datos', label: 'Datos personales', icon: User },
+  { key: 'direcciones', label: 'Direcciones', icon: MapPin },
+  { key: 'seguridad', label: 'Configurar mi cuenta', icon: ShieldCheck },
+];
+
+// ─── Piezas de UI ─────────────────────────────────────────────────────────────
+
+function Tooltip({ texto }: { texto: string }): React.ReactElement {
+  return (
+    <span className="group relative inline-flex">
+      <AlertCircle size={14} className="text-store-ink-mute" aria-hidden="true" />
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 top-full z-10 mt-xs w-56 -translate-x-1/2 rounded-md border border-store-line bg-store-surface p-sm text-xs font-normal normal-case tracking-normal text-store-ink-soft opacity-0 transition-opacity group-hover:opacity-100"
+      >
+        {texto}
+      </span>
+    </span>
+  );
+}
+
+interface FilaCamposProps {
+  titulo: string;
+  valor: React.ReactNode;
+  /** Si se pasa, la fila es editable y muestra el botón "Editar". */
+  editor?: React.ReactNode;
+  onGuardar?: () => Promise<void>;
+  puedeGuardar?: boolean;
+  tooltip?: string;
+}
+
+/** Fila etiqueta/valor con edición por campo (patrón "Mi perfil"). */
+function FilaCampos({
+  titulo,
+  valor,
+  editor,
+  onGuardar,
+  puedeGuardar = true,
+  tooltip,
+}: FilaCamposProps): React.ReactElement {
+  const [editando, setEditando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const guardar = async (): Promise<void> => {
+    if (!onGuardar) return;
+    setGuardando(true);
+    setError(null);
     try {
-      const json = await cuentaApi.actualizarPerfil(payload);
-      if (!json.success) {
-        setMensaje({ tipo: 'error', texto: json.error.message });
-        return;
-      }
-      setMensaje({ tipo: 'exito', texto: 'Datos actualizados correctamente.' });
-      if (usuario) actualizarSesion({ ...usuario, nombre: json.data.nombres });
+      await onGuardar();
+      setEditando(false);
     } catch (err) {
-      setMensaje({ tipo: 'error', texto: err instanceof ApiClientError ? err.message : 'Error al guardar' });
+      setError(err instanceof Error ? err.message : 'No se pudo guardar');
     } finally {
-      setIsSubmitting(false);
+      setGuardando(false);
     }
   };
 
   return (
-    <section className="rounded-lg border border-store-line bg-store-surface p-xl">
-      <h2 className="text-heading-md font-semibold text-store-ink">Datos personales</h2>
-      <form onSubmit={onSubmit} noValidate className="mt-md space-y-md">
-        {mensaje && <Alerta tipo={mensaje.tipo === 'exito' ? 'exito' : 'error'}>{mensaje.texto}</Alerta>}
+    <div className="border-b border-store-line py-md last:border-b-0">
+      <div className="flex items-start justify-between gap-md">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-store-ink-mute">{titulo}</h4>
+        {editor && !editando && (
+          <button
+            type="button"
+            onClick={() => setEditando(true)}
+            className="shrink-0 text-sm font-medium text-store-accent hover:underline"
+          >
+            Editar
+          </button>
+        )}
+      </div>
 
-        <div>
-          <label htmlFor="per-email" className={LABEL_STORE}>Correo electrónico</label>
-          <Input id="per-email" value={perfil.email} readOnly disabled className={INPUT_STORE} />
-          <p className="mt-xs text-xs text-store-ink-mute">El correo de acceso no se puede cambiar aquí.</p>
+      {!editando ? (
+        <div className="mt-xs flex items-center gap-sm text-sm text-store-ink">
+          {valor}
+          {tooltip && <Tooltip texto={tooltip} />}
         </div>
-
-        <div className="grid gap-md sm:grid-cols-2">
-          <div>
-            <label htmlFor="per-tipo" className={LABEL_STORE}>Tipo de documento</label>
-            <select id="per-tipo" value={tipoDocumento} onChange={(e) => setTipoDocumento(e.target.value as TipoDocumento)} className={SELECT_STORE}>
-              {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
+      ) : (
+        <div className="mt-sm flex flex-col gap-sm">
+          {editor}
+          {error && (
+            <p role="alert" aria-live="polite" className="text-xs text-store-offer">
+              {error}
+            </p>
+          )}
+          <div className="flex items-center gap-sm">
+            <Button
+              type="button"
+              size="sm"
+              isLoading={guardando}
+              disabled={!puedeGuardar}
+              onClick={guardar}
+              className="rounded-md bg-store-ink text-white hover:bg-store-ink/90"
+            >
+              {guardando ? 'Guardando…' : 'Guardar'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setEditando(false);
+                setError(null);
+              }}
+              className="rounded-md"
+            >
+              Cancelar
+            </Button>
           </div>
-          <div>
-            <label htmlFor="per-numero" className={LABEL_STORE}>Número de documento</label>
-            <Input id="per-numero" value={numeroDocumento} onChange={(e) => setNumeroDocumento(e.target.value)} inputMode="numeric" className={INPUT_STORE} />
-          </div>
         </div>
+      )}
+    </div>
+  );
+}
 
-        <div className="grid gap-md sm:grid-cols-2">
-          <div>
-            <label htmlFor="per-nombres" className={LABEL_STORE}>Nombres</label>
-            <Input id="per-nombres" value={nombres} onChange={(e) => setNombres(e.target.value)} className={INPUT_STORE} />
-          </div>
-          <div>
-            <label htmlFor="per-apellidos" className={LABEL_STORE}>Apellidos</label>
-            <Input id="per-apellidos" value={apellidos} onChange={(e) => setApellidos(e.target.value)} className={INPUT_STORE} />
-          </div>
-        </div>
+// ─── Datos personales ─────────────────────────────────────────────────────────
 
-        <div>
-          <label htmlFor="per-telefono" className={LABEL_STORE}>Teléfono</label>
-          <Input id="per-telefono" value={telefono} onChange={(e) => setTelefono(e.target.value)} inputMode="tel" className={INPUT_STORE} />
-        </div>
+interface DatosProps {
+  perfil: PerfilCliente;
+  onActualizado: () => void;
+}
 
-        <div className="flex justify-end">
-          <Button type="submit" isLoading={isSubmitting} className={cn(BOTON_STORE, 'w-auto px-lg')}>
-            {isSubmitting ? 'Guardando…' : 'Guardar cambios'}
-          </Button>
+function SeccionDatos({ perfil, onActualizado }: DatosProps): React.ReactElement {
+  const { usuario, actualizarSesion } = useAuth();
+
+  const [nombres, setNombres] = useState(perfil.nombres ?? '');
+  const [apellidos, setApellidos] = useState(perfil.apellidos ?? '');
+  const [tipoDocumento, setTipoDocumento] = useState<TipoDocumento>(perfil.tipo_documento ?? 'DNI');
+  const [numeroDocumento, setNumeroDocumento] = useState(perfil.numero_documento ?? '');
+  const [telefono, setTelefono] = useState(perfil.telefono ?? '');
+  const [avisoGlobal, setAvisoGlobal] = useState<string | null>(null);
+
+  const guardar = async (payload: Parameters<typeof cuentaApi.actualizarPerfil>[0]): Promise<void> => {
+    const json = await cuentaApi.actualizarPerfil(payload);
+    if (!json.success) throw new Error(json.error.message);
+    if (usuario) actualizarSesion({ ...usuario, nombre: json.data.nombres });
+    onActualizado();
+    setAvisoGlobal('Datos actualizados correctamente.');
+  };
+
+  const conCatcher = (payload: Parameters<typeof cuentaApi.actualizarPerfil>[0]) => async (): Promise<void> => {
+    try {
+      await guardar(payload);
+    } catch (err) {
+      throw new Error(err instanceof ApiClientError ? err.message : 'Error al guardar');
+    }
+  };
+
+  return (
+    <div>
+      {!perfil.perfil_completo && (
+        <div className="mb-md">
+          <Alerta tipo="info">
+            Te falta registrar tu <strong>documento de identidad</strong> para poder comprar.
+          </Alerta>
         </div>
-      </form>
-    </section>
+      )}
+      {avisoGlobal && (
+        <div className="mb-md">
+          <Alerta tipo="exito">{avisoGlobal}</Alerta>
+        </div>
+      )}
+
+      <div className="grid gap-lg md:grid-cols-2">
+        <FilaCampos
+          titulo="Nombre y apellidos"
+          valor={`${perfil.nombres ?? ''} ${perfil.apellidos ?? ''}`.trim() || '—'}
+          editor={
+            <div className="grid gap-sm sm:grid-cols-2">
+              <Input aria-label="Nombres" value={nombres} onChange={(e) => setNombres(e.target.value)} className={INPUT_STORE} />
+              <Input aria-label="Apellidos" value={apellidos} onChange={(e) => setApellidos(e.target.value)} className={INPUT_STORE} />
+            </div>
+          }
+          puedeGuardar={nombres.trim().length >= 2 && apellidos.trim().length >= 2}
+          onGuardar={conCatcher({ nombres: nombres.trim(), apellidos: apellidos.trim() })}
+        />
+
+        <FilaCampos
+          titulo="Tipo de documento"
+          valor={
+            perfil.tipo_documento && perfil.numero_documento
+              ? `${perfil.tipo_documento} ${perfil.numero_documento}`
+              : 'Sin registrar'
+          }
+          editor={
+            <div className="grid gap-sm sm:grid-cols-2">
+              <select
+                aria-label="Tipo de documento"
+                value={tipoDocumento}
+                onChange={(e) => setTipoDocumento(e.target.value as TipoDocumento)}
+                className={SELECT_STORE}
+              >
+                {TIPOS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <Input
+                aria-label="Número de documento"
+                value={numeroDocumento}
+                onChange={(e) => setNumeroDocumento(e.target.value)}
+                inputMode="numeric"
+                className={INPUT_STORE}
+              />
+            </div>
+          }
+          puedeGuardar={numeroDocumento.trim().length >= 6}
+          onGuardar={conCatcher({
+            tipo_documento: tipoDocumento,
+            numero_documento: numeroDocumento.trim(),
+          })}
+        />
+
+        <FilaCampos
+          titulo="Celular"
+          valor={perfil.telefono || 'Sin registrar'}
+          editor={
+            <Input
+              aria-label="Celular"
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+              inputMode="tel"
+              className={INPUT_STORE}
+            />
+          }
+          puedeGuardar={telefono.trim().length >= 9}
+          onGuardar={conCatcher({ telefono: telefono.trim() })}
+        />
+
+        <FilaCampos
+          titulo="Correo"
+          valor={perfil.email}
+          tooltip="Por tu seguridad, no es posible editar tu correo. Si necesitas usar otro, crea una nueva cuenta."
+        />
+      </div>
+    </div>
   );
 }
 
 // ─── Seguridad (contraseña) ───────────────────────────────────────────────────
 
-function Seguridad(): React.ReactElement {
+function SeccionSeguridad(): React.ReactElement {
   const [actual, setActual] = useState('');
   const [nueva, setNueva] = useState('');
   const [confirmar, setConfirmar] = useState('');
@@ -148,43 +318,37 @@ function Seguridad(): React.ReactElement {
   };
 
   return (
-    <section className="rounded-lg border border-store-line bg-store-surface p-xl">
-      <h2 className="text-heading-md font-semibold text-store-ink">Seguridad</h2>
-      <form onSubmit={onSubmit} noValidate className="mt-md space-y-md">
-        {mensaje && <Alerta tipo={mensaje.tipo === 'exito' ? 'exito' : 'error'}>{mensaje.texto}</Alerta>}
+    <form onSubmit={onSubmit} noValidate className="max-w-md space-y-md">
+      <h3 className="text-heading-md font-semibold text-store-ink">Cambiar contraseña</h3>
+      {mensaje && <Alerta tipo={mensaje.tipo === 'exito' ? 'exito' : 'error'}>{mensaje.texto}</Alerta>}
 
-        <div>
-          <label htmlFor="seg-actual" className={LABEL_STORE}>Contraseña actual</label>
-          <Input id="seg-actual" type="password" value={actual} onChange={(e) => setActual(e.target.value)} autoComplete="current-password" className={INPUT_STORE} />
-        </div>
-        <div className="grid gap-md sm:grid-cols-2">
-          <div>
-            <label htmlFor="seg-nueva" className={LABEL_STORE}>Nueva contraseña</label>
-            <Input id="seg-nueva" type="password" value={nueva} onChange={(e) => setNueva(e.target.value)} autoComplete="new-password" invalid={nueva.length > 0 && !nuevaValida} className={INPUT_STORE} />
-          </div>
-          <div>
-            <label htmlFor="seg-confirmar" className={LABEL_STORE}>Confirmar contraseña</label>
-            <Input id="seg-confirmar" type="password" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} autoComplete="new-password" invalid={confirmar.length > 0 && !coinciden} className={INPUT_STORE} />
-          </div>
-        </div>
-        {nueva.length > 0 && !nuevaValida && (
-          <p role="alert" aria-live="polite" className="text-xs text-store-offer">Mínimo 8 caracteres, una mayúscula y un número.</p>
-        )}
+      <div>
+        <label htmlFor="seg-actual" className={LABEL_STORE}>Contraseña actual</label>
+        <Input id="seg-actual" type="password" value={actual} onChange={(e) => setActual(e.target.value)} autoComplete="current-password" className={INPUT_STORE} />
+      </div>
+      <div>
+        <label htmlFor="seg-nueva" className={LABEL_STORE}>Nueva contraseña</label>
+        <Input id="seg-nueva" type="password" value={nueva} onChange={(e) => setNueva(e.target.value)} autoComplete="new-password" invalid={nueva.length > 0 && !nuevaValida} className={INPUT_STORE} />
+        <p className="mt-xs text-xs text-store-ink-mute">Mínimo 8 caracteres, una mayúscula y un número.</p>
+      </div>
+      <div>
+        <label htmlFor="seg-confirmar" className={LABEL_STORE}>Confirmar contraseña</label>
+        <Input id="seg-confirmar" type="password" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} autoComplete="new-password" invalid={confirmar.length > 0 && !coinciden} className={INPUT_STORE} />
         {confirmar.length > 0 && !coinciden && (
-          <p role="alert" aria-live="polite" className="text-xs text-store-offer">Las contraseñas no coinciden.</p>
+          <p role="alert" aria-live="polite" className="mt-xs text-xs text-store-offer">Las contraseñas no coinciden.</p>
         )}
+      </div>
 
-        <div className="flex justify-end">
-          <Button type="submit" isLoading={isSubmitting} disabled={!puedeEnviar} className={cn(BOTON_STORE, 'w-auto px-lg')}>
-            {isSubmitting ? 'Guardando…' : 'Cambiar contraseña'}
-          </Button>
-        </div>
-      </form>
-    </section>
+      <div className="flex justify-end">
+        <Button type="submit" isLoading={isSubmitting} disabled={!puedeEnviar} className="rounded-md bg-store-ink px-lg text-white hover:bg-store-ink/90">
+          {isSubmitting ? 'Guardando…' : 'Cambiar contraseña'}
+        </Button>
+      </div>
+    </form>
   );
 }
 
-// ─── Libreta de direcciones ───────────────────────────────────────────────────
+// ─── Direcciones ──────────────────────────────────────────────────────────────
 
 interface DireccionModalProps {
   direccion: DireccionItem | null;
@@ -225,9 +389,10 @@ function DireccionModal({ direccion, onClose, onSaved }: DireccionModalProps): R
       es_principal: esPrincipal,
     };
     try {
-      const json = editing && direccion
-        ? await cuentaApi.actualizarDireccion(direccion.id, payload)
-        : await cuentaApi.crearDireccion(payload);
+      const json =
+        editing && direccion
+          ? await cuentaApi.actualizarDireccion(direccion.id, payload)
+          : await cuentaApi.crearDireccion(payload);
       if (!json.success) {
         setServerError(json.error.message);
         return;
@@ -301,7 +466,7 @@ function DireccionModal({ direccion, onClose, onSaved }: DireccionModalProps): R
   );
 }
 
-function MisDirecciones(): React.ReactElement {
+function SeccionDirecciones(): React.ReactElement {
   const [direcciones, setDirecciones] = useState<DireccionItem[]>([]);
   const [status, setStatus] = useState<'loading' | 'error' | 'ready'>('loading');
   const [reloadKey, setReloadKey] = useState(0);
@@ -333,38 +498,44 @@ function MisDirecciones(): React.ReactElement {
 
   const recargar = useCallback(() => setReloadKey((k) => k + 1), []);
 
-  const marcarPrincipal = useCallback(async (dir: DireccionItem): Promise<void> => {
-    setOcupadoId(dir.id);
-    setError(null);
-    try {
-      const json = await cuentaApi.marcarPrincipal(dir.id);
-      if (!json.success) setError(json.error.message);
-      else recargar();
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Error al actualizar');
-    } finally {
-      setOcupadoId(null);
-    }
-  }, [recargar]);
+  const marcarPrincipal = useCallback(
+    async (dir: DireccionItem): Promise<void> => {
+      setOcupadoId(dir.id);
+      setError(null);
+      try {
+        const json = await cuentaApi.marcarPrincipal(dir.id);
+        if (!json.success) setError(json.error.message);
+        else recargar();
+      } catch (err) {
+        setError(err instanceof ApiClientError ? err.message : 'Error al actualizar');
+      } finally {
+        setOcupadoId(null);
+      }
+    },
+    [recargar]
+  );
 
-  const eliminar = useCallback(async (dir: DireccionItem): Promise<void> => {
-    setOcupadoId(dir.id);
-    setError(null);
-    try {
-      const json = await cuentaApi.eliminarDireccion(dir.id);
-      if (!json.success) setError(json.error.message);
-      else recargar();
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Error al eliminar');
-    } finally {
-      setOcupadoId(null);
-    }
-  }, [recargar]);
+  const eliminar = useCallback(
+    async (dir: DireccionItem): Promise<void> => {
+      setOcupadoId(dir.id);
+      setError(null);
+      try {
+        const json = await cuentaApi.eliminarDireccion(dir.id);
+        if (!json.success) setError(json.error.message);
+        else recargar();
+      } catch (err) {
+        setError(err instanceof ApiClientError ? err.message : 'Error al eliminar');
+      } finally {
+        setOcupadoId(null);
+      }
+    },
+    [recargar]
+  );
 
   return (
-    <section className="rounded-lg border border-store-line bg-store-surface p-xl">
+    <div>
       <div className="flex items-center justify-between gap-md">
-        <h2 className="text-heading-md font-semibold text-store-ink">Mis direcciones</h2>
+        <h3 className="text-heading-md font-semibold text-store-ink">Mis direcciones</h3>
         <Button type="button" variant="secondary" size="sm" onClick={() => setModal({ direccion: null })}>
           <Plus size={14} aria-hidden="true" />
           Agregar
@@ -396,47 +567,46 @@ function MisDirecciones(): React.ReactElement {
           </div>
         )}
 
-        {status === 'ready' && direcciones.map((dir) => (
-          <div key={dir.id} className="flex flex-wrap items-start justify-between gap-sm rounded-md border border-store-line p-md">
-            <div className="flex flex-col gap-xxs">
-              <div className="flex items-center gap-sm">
-                <span className="text-sm font-medium text-store-ink">
-                  {dir.direccion_linea}
+        {status === 'ready' &&
+          direcciones.map((dir) => (
+            <div key={dir.id} className="flex flex-wrap items-start justify-between gap-sm rounded-md border border-store-line p-md">
+              <div className="flex flex-col gap-xxs">
+                <div className="flex items-center gap-sm">
+                  <span className="text-sm font-medium text-store-ink">{dir.direccion_linea}</span>
+                  {dir.es_principal && (
+                    <span className="inline-flex items-center gap-xs rounded-full bg-store-ok/10 px-sm py-xxs text-xs font-medium text-store-ok">
+                      <Star size={11} aria-hidden="true" /> Principal
+                    </span>
+                  )}
+                </div>
+                <span className="text-sm text-store-ink-soft">
+                  {dir.distrito}, {dir.provincia} — {dir.departamento}
                 </span>
-                {dir.es_principal && (
-                  <span className="inline-flex items-center gap-xs rounded-full bg-store-ok/10 px-sm py-xxs text-xs font-medium text-store-ok">
-                    <Star size={11} aria-hidden="true" /> Principal
-                  </span>
-                )}
+                {dir.referencia && <span className="text-xs text-store-ink-mute">Ref: {dir.referencia}</span>}
               </div>
-              <span className="text-sm text-store-ink-soft">
-                {dir.distrito}, {dir.provincia} — {dir.departamento}
-              </span>
-              {dir.referencia && <span className="text-xs text-store-ink-mute">Ref: {dir.referencia}</span>}
-            </div>
 
-            <div className="flex items-center gap-xs">
-              {!dir.es_principal && (
-                <Button type="button" variant="ghost" size="sm" isLoading={ocupadoId === dir.id} onClick={() => marcarPrincipal(dir)}>
-                  Hacer principal
+              <div className="flex items-center gap-xs">
+                {!dir.es_principal && (
+                  <Button type="button" variant="ghost" size="sm" isLoading={ocupadoId === dir.id} onClick={() => marcarPrincipal(dir)}>
+                    Hacer principal
+                  </Button>
+                )}
+                <Button type="button" variant="secondary" size="sm" onClick={() => setModal({ direccion: dir })}>
+                  <Pencil size={12} aria-hidden="true" /> Editar
                 </Button>
-              )}
-              <Button type="button" variant="secondary" size="sm" onClick={() => setModal({ direccion: dir })}>
-                <Pencil size={12} aria-hidden="true" /> Editar
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => eliminar(dir)}
-                aria-label={`Eliminar dirección ${dir.direccion_linea}`}
-                className="text-store-ink-mute hover:bg-store-offer/8 hover:text-store-offer"
-              >
-                <Trash2 size={13} aria-hidden="true" />
-              </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => eliminar(dir)}
+                  aria-label={`Eliminar dirección ${dir.direccion_linea}`}
+                  className="text-store-ink-mute hover:bg-store-offer/8 hover:text-store-offer"
+                >
+                  <Trash2 size={13} aria-hidden="true" />
+                </Button>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
       </div>
 
       {modal && (
@@ -449,63 +619,105 @@ function MisDirecciones(): React.ReactElement {
           }}
         />
       )}
-    </section>
+    </div>
   );
 }
 
 // ─── Página ───────────────────────────────────────────────────────────────────
 
 export function PerfilPage(): React.ReactElement {
-  const { usuario } = useAuth();
+  const { usuario, logout } = useAuth();
+  const navigate = useNavigate();
   const perfil = useApiData<PerfilCliente>('/api/v1/me');
+  const [seccion, setSeccion] = useState<SeccionKey>('datos');
+
+  const cerrarSesion = (): void => {
+    logout();
+    navigate('/');
+  };
 
   return (
-    <div className="mx-auto w-full max-w-[880px] py-xl">
-      <div className="mb-lg flex flex-wrap items-end justify-between gap-sm">
-        <div>
-          <h1 className="text-display-md font-semibold text-store-ink">Mi cuenta</h1>
-          <p className="mt-xs text-sm text-store-ink-soft">
-            Hola{perfil.estado.status === 'success' && perfil.estado.data.nombres
-              ? `, ${perfil.estado.data.nombres}`
-              : usuario?.nombre
-                ? `, ${usuario.nombre}`
-                : ''}
-            . Gestiona tus datos, seguridad y direcciones.
-          </p>
-        </div>
-        <Link to="/catalogo" className="text-sm font-medium text-store-accent hover:underline">
-          Seguir comprando
-        </Link>
+    <div className="mx-auto w-full max-w-[1040px] py-xl">
+      <div className="mb-lg">
+        <h1 className="text-display-md font-semibold text-store-ink">Mi cuenta</h1>
+        <p className="mt-xs text-sm text-store-ink-soft">
+          Hola
+          {perfil.estado.status === 'success' && perfil.estado.data.nombres
+            ? `, ${perfil.estado.data.nombres}`
+            : usuario?.nombre
+              ? `, ${usuario.nombre}`
+              : ''}
+          . Gestiona tus datos, seguridad y direcciones.
+        </p>
       </div>
 
-      {perfil.estado.status === 'loading' && (
-        <div className="space-y-lg">
-          <div className="h-64 animate-pulse rounded-lg border border-store-line bg-store-surface" />
-          <div className="h-48 animate-pulse rounded-lg border border-store-line bg-store-surface" />
-        </div>
-      )}
+      <div className="grid gap-lg md:grid-cols-[248px_1fr]">
+        {/* Menú lateral */}
+        <aside>
+          <nav
+            className="flex gap-xs overflow-x-auto md:flex-col md:overflow-visible"
+            aria-label="Secciones de mi cuenta"
+          >
+            {SECCIONES.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                aria-current={seccion === key}
+                onClick={() => setSeccion(key)}
+                className={cn(
+                  'flex shrink-0 items-center gap-sm rounded-md border px-md py-sm text-sm font-medium transition-colors md:w-full md:justify-start',
+                  seccion === key
+                    ? 'border-store-ink bg-store-ink text-white'
+                    : 'border-store-line bg-store-surface text-store-ink-soft hover:text-store-ink'
+                )}
+              >
+                <Icon size={16} aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={cerrarSesion}
+              className="flex shrink-0 items-center gap-sm rounded-md border border-store-line bg-store-surface px-md py-sm text-sm font-medium text-store-ink-soft transition-colors hover:border-store-offer hover:text-store-offer md:mt-md md:w-full md:justify-start"
+            >
+              <LogOut size={16} aria-hidden="true" />
+              Cerrar sesión
+            </button>
+          </nav>
+        </aside>
 
-      {perfil.estado.status === 'error' && (
-        <div className="flex flex-col items-center gap-md rounded-lg border border-store-line bg-store-surface p-xl text-center">
-          <p className="text-sm font-medium text-store-ink">No se pudo cargar tu perfil</p>
-          <p className="text-sm text-store-ink-soft">{perfil.estado.message}</p>
-          <Button type="button" variant="secondary" onClick={perfil.recargar}>Reintentar</Button>
-        </div>
-      )}
-
-      {perfil.estado.status === 'success' && (
-        <div className="grid gap-lg">
-          {!perfil.estado.data.perfil_completo && (
-            <Alerta tipo="info">
-              Te falta registrar tu <strong>documento de identidad</strong> para poder comprar. Complétalo en
-              “Datos personales”.
-            </Alerta>
+        {/* Panel de contenido */}
+        <section className="rounded-lg border border-store-line bg-store-surface p-xl">
+          {perfil.estado.status === 'loading' && (
+            <div className="space-y-md">
+              <div className="h-5 w-40 animate-pulse rounded-full bg-store-line" />
+              <div className="h-14 animate-pulse rounded-md bg-store-line/40" />
+              <div className="h-14 animate-pulse rounded-md bg-store-line/40" />
+            </div>
           )}
-          <DatosPersonales perfil={perfil.estado.data} />
-          <Seguridad />
-          <MisDirecciones />
-        </div>
-      )}
+
+          {perfil.estado.status === 'error' && (
+            <div className="flex flex-col items-center gap-md py-lg text-center">
+              <p className="text-sm font-medium text-store-ink">No se pudo cargar tu perfil</p>
+              <p className="text-sm text-store-ink-soft">{perfil.estado.message}</p>
+              <Button type="button" variant="secondary" onClick={perfil.recargar}>Reintentar</Button>
+            </div>
+          )}
+
+          {perfil.estado.status === 'success' && (
+            <>
+              <h2 className="mb-md text-heading-md font-semibold text-store-ink">
+                {SECCIONES.find((s) => s.key === seccion)?.label}
+              </h2>
+              {seccion === 'datos' && (
+                <SeccionDatos perfil={perfil.estado.data} onActualizado={perfil.recargar} />
+              )}
+              {seccion === 'direcciones' && <SeccionDirecciones />}
+              {seccion === 'seguridad' && <SeccionSeguridad />}
+            </>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
