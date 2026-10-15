@@ -119,6 +119,10 @@ export const categoryService = {
       return fallo('INTERNAL_ERROR', 'No se pudo recuperar la categoría creada');
     }
 
+    if (input.atributos_permitidos != null) {
+      await categoryRepository.sincronizarAtributosCategoria(id, input.atributos_permitidos);
+    }
+
     return { success: true, message: 'Categoría creada correctamente', data: await conAtributos(creada) };
   },
 
@@ -182,6 +186,10 @@ export const categoryService = {
     const actualizada = await categoryRepository.obtenerPorId(id);
     if (!actualizada) {
       return fallo('INTERNAL_ERROR', 'No se pudo recuperar la categoría actualizada');
+    }
+
+    if (input.atributos_permitidos !== undefined) {
+      await categoryRepository.sincronizarAtributosCategoria(id, input.atributos_permitidos ?? []);
     }
 
     return {

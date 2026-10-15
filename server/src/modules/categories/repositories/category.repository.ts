@@ -265,4 +265,30 @@ export const categoryRepository = {
       client.release();
     }
   },
+
+  /**
+   * Sincroniza `categorias_atributos` (FK al maestro) con los códigos permitidos.
+   * Mantiene la integridad referencial del vínculo categoría ↔ atributo.
+   */
+  async sincronizarAtributosCategoria(categoriaId: number, codigos: string[]): Promise<void> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM categorias_atributos WHERE categoria_id = $1`, [categoriaId]);
+      if (codigos.length > 0) {
+        await client.query(
+          `INSERT INTO categorias_atributos (categoria_id, atributo_id)
+           SELECT $1, id FROM atributos WHERE codigo = ANY($2::text[])
+           ON CONFLICT DO NOTHING`,
+          [categoriaId, codigos]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
 };

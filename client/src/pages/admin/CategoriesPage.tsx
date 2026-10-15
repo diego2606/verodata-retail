@@ -24,6 +24,7 @@ import { Select, type SelectOption } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 import { apiClient, ApiClientError } from '../../lib/apiClient';
+import { atributosApi } from '../../lib/atributosApi';
 import { ATRIBUTO_KEYS, ATRIBUTO_LABELS, SKU_SEGMENTOS } from '../../lib/atributos';
 import { generarSkuEstructurado } from '../../lib/sku';
 import type {
@@ -222,6 +223,8 @@ function ErrorState({ onRetry }: { onRetry: () => void }): React.ReactElement {
 interface CategoryModalProps {
   categoria: CategoriaItem | null;
   categorias: CategoriaItem[];
+  /** Atributos del maestro global (codigo + nombre) para elegirlos. */
+  atributosMaestro: Array<{ codigo: string; nombre: string }>;
   onClose: () => void;
   onSaved: (message: string) => void;
 }
@@ -264,7 +267,7 @@ function parseSegmentos(texto: string): string[] {
   return out;
 }
 
-function CategoryModal({ categoria, categorias, onClose, onSaved }: CategoryModalProps): React.ReactElement {
+function CategoryModal({ categoria, categorias, atributosMaestro, onClose, onSaved }: CategoryModalProps): React.ReactElement {
   const editing = categoria !== null;
   const [serverError, setServerError] = useState<string | null>(null);
   const [slugTouched, setSlugTouched] = useState(editing);
@@ -280,6 +283,14 @@ function CategoryModal({ categoria, categorias, onClose, onSaved }: CategoryModa
       ])
     )
   );
+
+  // Opciones de atributos: del maestro global; si aún no carga, fallback a las claves conocidas.
+  const opciones =
+    atributosMaestro.length > 0
+      ? atributosMaestro
+      : ATRIBUTO_KEYS.map(key => ({ codigo: key, nombre: ATRIBUTO_LABELS[key] ?? key }));
+  const labelDe = (codigo: string): string =>
+    opciones.find(o => o.codigo === codigo)?.nombre ?? ATRIBUTO_LABELS[codigo] ?? codigo;
   const [skuPrefijo, setSkuPrefijo] = useState(categoria?.sku_prefijo ?? '');
   const [skuSegmentosTexto, setSkuSegmentosTexto] = useState(
     (categoria?.sku_segmentos ?? []).join(', ')
@@ -523,18 +534,18 @@ function CategoryModal({ categoria, categorias, onClose, onSaved }: CategoryModa
           {defineAtributos ? (
             <>
               <div className="mt-sm flex flex-wrap gap-xs">
-                {ATRIBUTO_KEYS.map(key => {
-                  const activo = atributosSeleccionados.includes(key);
+                {opciones.map(op => {
+                  const activo = atributosSeleccionados.includes(op.codigo);
                   return (
                     <Button
-                      key={key}
+                      key={op.codigo}
                       type="button"
                       size="sm"
                       variant={activo ? 'primary' : 'secondary'}
                       aria-pressed={activo}
-                      onClick={() => toggleAtributo(key)}
+                      onClick={() => toggleAtributo(op.codigo)}
                     >
-                      {ATRIBUTO_LABELS[key]}
+                      {op.nombre}
                     </Button>
                   );
                 })}
@@ -545,18 +556,16 @@ function CategoryModal({ categoria, categorias, onClose, onSaved }: CategoryModa
                   <p className="text-xs text-ink-mute">
                     Valores sugeridos (se muestran como atajos al crear el producto):
                   </p>
-                  {atributosSeleccionados.map(key => (
-                    <div key={key} className="flex items-center gap-sm">
-                      <span className="w-28 shrink-0 text-xs text-ink-mute">
-                        {ATRIBUTO_LABELS[key]}
-                      </span>
+                  {atributosSeleccionados.map(codigo => (
+                    <div key={codigo} className="flex items-center gap-sm">
+                      <span className="w-28 shrink-0 text-xs text-ink-mute">{labelDe(codigo)}</span>
                       <Input
-                        value={valoresAtributos[key] ?? ''}
+                        value={valoresAtributos[codigo] ?? ''}
                         onChange={e =>
-                          setValoresAtributos(prev => ({ ...prev, [key]: e.target.value }))
+                          setValoresAtributos(prev => ({ ...prev, [codigo]: e.target.value }))
                         }
                         placeholder="Separados por coma (ej. Negro, Blanco)"
-                        aria-label={`Valores sugeridos para ${ATRIBUTO_LABELS[key]}`}
+                        aria-label={`Valores sugeridos para ${labelDe(codigo)}`}
                       />
                     </div>
                   ))}
@@ -568,7 +577,7 @@ function CategoryModal({ categoria, categorias, onClose, onSaved }: CategoryModa
               {heredados === null
                 ? 'Sin categoría padre: se usarán los atributos sugeridos automáticamente.'
                 : heredados.length > 0
-                  ? `Hereda del padre: ${heredados.map(k => ATRIBUTO_LABELS[k] ?? k).join(', ')}.`
+                  ? `Hereda del padre: ${heredados.map(k => labelDe(k)).join(', ')}.`
                   : 'El padre no define atributos; se usarán los sugeridos automáticamente.'}
             </p>
           )}
@@ -690,6 +699,7 @@ export function CategoriesPage(): React.ReactElement {
   const [isProcessing, setIsProcessing] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [maestro, setMaestro] = useState<Array<{ codigo: string; nombre: string }>>([]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
@@ -724,6 +734,22 @@ export function CategoriesPage(): React.ReactElement {
       active = false;
     };
   }, [debouncedSearch, estadoFilter, reloadKey]);
+
+  // Maestro de atributos global (para asociar atributos del maestro a la categoría).
+  useEffect(() => {
+    let active = true;
+    atributosApi
+      .listar()
+      .then(json => {
+        if (active && json.success) {
+          setMaestro(json.data.map(a => ({ codigo: a.codigo, nombre: a.nombre })));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -1029,6 +1055,7 @@ export function CategoriesPage(): React.ReactElement {
         <CategoryModal
           categoria={modal.categoria}
           categorias={categorias}
+          atributosMaestro={maestro}
           onClose={() => setModal(null)}
           onSaved={handleSaved}
         />
