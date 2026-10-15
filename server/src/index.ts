@@ -9,6 +9,8 @@ import productRoutes from './modules/products/routes/product.routes';
 import colorRoutes from './modules/colors/routes/color.routes';
 import inventoryRoutes from './modules/inventory/routes/inventory.routes';
 import storefrontRoutes from './modules/storefront/routes/storefront.routes';
+import bannerRoutes from './modules/banners/routes/banner.routes';
+import siteConfigRoutes from './modules/siteconfig/routes/siteconfig.routes';
 import statusRoutes from './modules/status/routes/status.routes';
 import { testConnection } from './config/db';
 
@@ -36,6 +38,8 @@ app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/colors', colorRoutes);
 app.use('/api/v1/inventory', inventoryRoutes);
 app.use('/api/v1/storefront', storefrontRoutes);
+app.use('/api/v1/banners', bannerRoutes);
+app.use('/api/v1/site-config', siteConfigRoutes);
 app.use('/api/v1/status', statusRoutes);
 
 // 404 handler

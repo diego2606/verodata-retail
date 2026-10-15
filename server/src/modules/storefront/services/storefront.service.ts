@@ -2,6 +2,7 @@ import {
   storefrontRepository,
   CatalogoFila,
   CategoriaPublicaFila,
+  BannerVigenteRow,
 } from '../repositories/storefront.repository';
 import { ListarCatalogoQuery } from '../schemas/storefront.schemas';
 import { ApiFailure, ApiResponse } from '../../../shared/types/api.types';
@@ -37,11 +38,42 @@ export interface CategoriaPublicaNodo extends CategoriaPublicaFila {
   hijos: CategoriaPublicaNodo[];
 }
 
+/** Agrupa categorías planas en un árbol jerárquico (padres con `hijos`). */
+export function construirArbolCategorias(filas: CategoriaPublicaFila[]): CategoriaPublicaNodo[] {
+  const nodos = new Map<number, CategoriaPublicaNodo>();
+  for (const fila of filas) nodos.set(fila.id, { ...fila, hijos: [] });
+
+  const raices: CategoriaPublicaNodo[] = [];
+  for (const nodo of nodos.values()) {
+    const padre = nodo.categoria_padre_id !== null ? nodos.get(nodo.categoria_padre_id) : undefined;
+    if (padre) padre.hijos.push(nodo);
+    else raices.push(nodo);
+  }
+  return raices;
+}
+
 export interface Paginado<T> {
   items: T[];
   pagina: number;
   total_paginas: number;
   total: number;
+}
+
+/** HU034: banner listo para renderizar en la portada. */
+export type BannerPublico = BannerVigenteRow;
+
+/** HU034: contenido completo de la portada pública. */
+export interface HomeData {
+  banners: {
+    hero: BannerPublico[];
+    ticker: BannerPublico[];
+    banda: BannerPublico[];
+  };
+  config: Record<string, unknown>;
+  categorias: CategoriaPublicaNodo[];
+  ofertas: ProductoPublico[];
+  nuevos: ProductoPublico[];
+  destacados: ProductoPublico[];
 }
 
 /** HU013 CA02: porcentaje de ahorro redondeado (0 si no aplica oferta). */
@@ -161,16 +193,44 @@ export const storefrontService = {
   /** HU013 CA01: árbol de categorías activas para la navegación. */
   async categorias(): Promise<ApiResponse<CategoriaPublicaNodo[]>> {
     const filas = await storefrontRepository.listarCategoriasActivas();
-    const nodos = new Map<number, CategoriaPublicaNodo>();
-    for (const fila of filas) nodos.set(fila.id, { ...fila, hijos: [] });
+    return {
+      success: true,
+      message: 'Categorías obtenidas correctamente',
+      data: construirArbolCategorias(filas),
+    };
+  },
 
-    const raices: CategoriaPublicaNodo[] = [];
-    for (const nodo of nodos.values()) {
-      const padre = nodo.categoria_padre_id !== null ? nodos.get(nodo.categoria_padre_id) : undefined;
-      if (padre) padre.hijos.push(nodo);
-      else raices.push(nodo);
-    }
-    return { success: true, message: 'Categorías obtenidas correctamente', data: raices };
+  /** HU034: compone la portada pública completa en una sola respuesta. */
+  async home(): Promise<ApiResponse<HomeData>> {
+    const [banners, configFilas, categoriaFilas, filas, destacadosFilas] = await Promise.all([
+      storefrontRepository.listarBannersVigentes(),
+      storefrontRepository.listarConfig(),
+      storefrontRepository.listarCategoriasActivas(),
+      storefrontRepository.listarCatalogo({ pagina: 1, limite: 1 }),
+      storefrontRepository.listarDestacados(),
+    ]);
+
+    const config: Record<string, unknown> = {};
+    for (const fila of configFilas) config[fila.clave] = fila.valor;
+
+    const fichas = agruparCatalogo(filas);
+
+    return {
+      success: true,
+      message: 'Portada obtenida correctamente',
+      data: {
+        banners: {
+          hero: banners.filter((b) => b.ubicacion === 'HERO'),
+          ticker: banners.filter((b) => b.ubicacion === 'TICKER'),
+          banda: banners.filter((b) => b.ubicacion === 'BANDA_EDITORIAL'),
+        },
+        config,
+        categorias: construirArbolCategorias(categoriaFilas),
+        ofertas: fichas.filter((f) => f.descuento_pct > 0).slice(0, 8),
+        nuevos: fichas.slice(0, 8),
+        destacados: agruparCatalogo(destacadosFilas).slice(0, 8),
+      },
+    };
   },
 
   /** HU013: detalle de una ficha pública con sus variantes hermanas. */

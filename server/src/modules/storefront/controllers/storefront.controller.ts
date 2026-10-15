@@ -46,6 +46,16 @@ export const storefrontController = {
     }
   },
 
+  async home(_req: Request, res: Response): Promise<void> {
+    try {
+      const result = await storefrontService.home();
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('[StorefrontController] home error:', error);
+      res.status(500).json(internalError());
+    }
+  },
+
   async detalleProducto(req: Request, res: Response): Promise<void> {
     try {
       const params = productoIdParamSchema.safeParse(req.params);

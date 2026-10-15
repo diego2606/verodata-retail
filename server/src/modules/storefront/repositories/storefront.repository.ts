@@ -28,6 +28,24 @@ export interface CategoriaPublicaFila {
   categoria_padre_id: number | null;
 }
 
+/** HU034: banner vigente que consume la portada pública. */
+export interface BannerVigenteRow {
+  id: string;
+  ubicacion: 'HERO' | 'TICKER' | 'BANDA_EDITORIAL';
+  titulo: string;
+  subtitulo: string | null;
+  cta_texto: string | null;
+  cta_url: string | null;
+  imagen_url: string;
+  orden: number;
+}
+
+/** HU034: par clave/valor de configuración del sitio. */
+export interface ConfigFila {
+  clave: string;
+  valor: unknown;
+}
+
 /**
  * HU013 CA01: solo productos activos pertenecientes a categorías activas.
  * El filtro por categoría incluye sus descendientes (consulta recursiva, HU025).
@@ -103,6 +121,36 @@ export const storefrontRepository = {
        FROM categorias
        WHERE activo = TRUE
        ORDER BY nombre ASC`
+    );
+    return result.rows;
+  },
+
+  /** HU034 CA05: banners activos y dentro de su vigencia. */
+  async listarBannersVigentes(): Promise<BannerVigenteRow[]> {
+    const result = await pool.query<BannerVigenteRow>(
+      `SELECT id, ubicacion, titulo, subtitulo, cta_texto, cta_url, imagen_url, orden
+       FROM banners
+       WHERE activo = TRUE
+         AND (vigente_desde IS NULL OR vigente_desde <= NOW())
+         AND (vigente_hasta IS NULL OR vigente_hasta >= NOW())
+       ORDER BY ubicacion ASC, orden ASC, creado_en ASC`
+    );
+    return result.rows;
+  },
+
+  /** HU034: textos y franjas globales de la tienda. */
+  async listarConfig(): Promise<ConfigFila[]> {
+    const result = await pool.query<ConfigFila>(`SELECT clave, valor FROM sitio_config`);
+    return result.rows;
+  },
+
+  /** HU034 CA03: productos curados para la portada. */
+  async listarDestacados(): Promise<CatalogoFila[]> {
+    const result = await pool.query<CatalogoFila>(
+      `${SELECT_CATALOGO}
+       WHERE p.activo = TRUE AND c.activo = TRUE AND p.destacado = TRUE
+       ORDER BY p.destacado_orden ASC NULLS LAST, p.creado_en DESC
+       LIMIT 12`
     );
     return result.rows;
   },
