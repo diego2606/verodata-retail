@@ -21,10 +21,12 @@ function SessionSkeleton(): React.ReactElement {
  * - Renderiza <Outlet /> si el usuario está autenticado.
  */
 export function ProtectedRoute(): React.ReactElement {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, usuario } = useAuth();
 
   if (isLoading) return <SessionSkeleton />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  // Un cliente no accede al backoffice: va a su perfil en la tienda.
+  if (usuario?.rol === 'CLIENTE') return <Navigate to="/cuenta/perfil" replace />;
 
   return <Outlet />;
 }

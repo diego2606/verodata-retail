@@ -2,12 +2,14 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'CLIENTE';
 
 export interface AuthUser {
   id: string;
   email: string;
   rol: UserRole;
+  /** Nombre para mostrar (clientes). Puede ser null. */
+  nombre?: string | null;
 }
 
 interface AuthState {
@@ -20,6 +22,8 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   login: (token: string, usuario: AuthUser, recordar?: boolean) => void;
   logout: () => void;
+  /** Refresca los datos del usuario en memoria y en el almacenamiento. */
+  actualizarSesion: (usuario: AuthUser) => void;
 }
 
 // ─── Helpers de persistencia ──────────────────────────────────────────────────
@@ -91,8 +95,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     setState({ token: null, usuario: null, isAuthenticated: false, isLoading: false });
   }, []);
 
+  const actualizarSesion = useCallback((usuario: AuthUser): void => {
+    const store = localStorage.getItem(TOKEN_KEY) ? localStorage : sessionStorage;
+    store.setItem(USER_KEY, JSON.stringify(usuario));
+    setState((prev) => ({ ...prev, usuario }));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContext.Provider value={{ ...state, login, logout, actualizarSesion }}>
       {children}
     </AuthContext.Provider>
   );

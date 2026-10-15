@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { ChevronDown, MapPin, Menu, Search, ShoppingBag, User } from 'lucide-react';
 import { ColoresProvider } from '../context/ColoresContext';
+import { useAuth } from '../context/AuthContext';
 
 const CONTENEDOR = 'mx-auto w-full max-w-[1200px] px-lg';
 
@@ -11,6 +12,7 @@ const CONTENEDOR = 'mx-auto w-full max-w-[1200px] px-lg';
  */
 export function StorefrontLayout(): React.ReactElement {
   const navigate = useNavigate();
+  const { isAuthenticated, usuario, logout } = useAuth();
   const [busqueda, setBusqueda] = useState('');
 
   function buscar(event: React.FormEvent<HTMLFormElement>): void {
@@ -19,6 +21,11 @@ export function StorefrontLayout(): React.ReactElement {
     // S9383: en react-router v7 navigate() puede devolver una promesa; `void`
     // deja explícito que el fire-and-forget es intencional.
     void navigate(query ? `/catalogo?search=${encodeURIComponent(query)}` : '/catalogo');
+  }
+
+  function cerrarSesion(): void {
+    logout();
+    void navigate('/');
   }
 
   return (
@@ -31,7 +38,14 @@ export function StorefrontLayout(): React.ReactElement {
             <Link to="/catalogo" className="hover:text-store-ink">Cambios y devoluciones</Link>
             <Link to="/catalogo" className="hover:text-store-ink">Venta telefónica</Link>
           </nav>
-          <Link to="/login" className="font-medium hover:text-store-accent">Ingresar</Link>
+          {isAuthenticated ? (
+            <div className="flex items-center gap-lg">
+              <Link to="/cuenta/perfil" className="font-medium hover:text-store-accent">Mi cuenta</Link>
+              <button type="button" onClick={cerrarSesion} className="hover:text-store-ink">Salir</button>
+            </div>
+          ) : (
+            <Link to="/cuenta/ingresar" className="font-medium hover:text-store-accent">Ingresar</Link>
+          )}
         </div>
       </div>
 
@@ -63,10 +77,13 @@ export function StorefrontLayout(): React.ReactElement {
           </form>
 
           <div className="ml-auto flex items-center gap-lg">
-            <span className="hidden items-center gap-sm text-sm text-store-ink-soft lg:flex">
+            <Link
+              to={isAuthenticated ? '/cuenta/perfil' : '/cuenta/ingresar'}
+              className="hidden items-center gap-sm text-sm text-store-ink-soft hover:text-store-ink lg:flex"
+            >
               <User size={18} aria-hidden="true" />
-              Hola, invitado
-            </span>
+              {isAuthenticated && usuario ? `Hola, ${usuario.nombre ?? usuario.email}` : 'Hola, invitado'}
+            </Link>
             <Link to="/catalogo" className="relative flex items-center" aria-label="Bolsa de compras">
               <ShoppingBag size={22} aria-hidden="true" />
               <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-store-accent px-xs text-xs font-semibold text-white">

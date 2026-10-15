@@ -10,6 +10,12 @@ import { ManualPage } from './pages/public/ManualPage';
 import { StorefrontHomePage } from './pages/public/StorefrontHomePage';
 import { CatalogPage } from './pages/public/CatalogPage';
 import { ProductDetailPage } from './pages/public/ProductDetailPage';
+import { ClienteRoute } from './router/ClienteRoute';
+import { LoginClientePage } from './pages/public/cuenta/LoginClientePage';
+import { RegistroPage } from './pages/public/cuenta/RegistroPage';
+import { RecuperarPage } from './pages/public/cuenta/RecuperarPage';
+import { RestablecerPage } from './pages/public/cuenta/RestablecerPage';
+import { PerfilPage } from './pages/public/cuenta/PerfilPage';
 import { DashboardPage } from './pages/admin/DashboardPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { CategoriesPage } from './pages/admin/CategoriesPage';
@@ -29,6 +35,17 @@ function App(): React.ReactElement {
             <Route path="/" element={<StorefrontHomePage />} />
             <Route path="/catalogo" element={<CatalogPage />} />
             <Route path="/producto/:id" element={<ProductDetailPage />} />
+
+            {/* Cuenta de cliente (registro, login, recuperación) */}
+            <Route path="/cuenta/ingresar" element={<LoginClientePage />} />
+            <Route path="/cuenta/registro" element={<RegistroPage />} />
+            <Route path="/cuenta/recuperar" element={<RecuperarPage />} />
+            <Route path="/cuenta/restablecer" element={<RestablecerPage />} />
+
+            {/* Perfil — requiere sesión */}
+            <Route element={<ClienteRoute />}>
+              <Route path="/cuenta/perfil" element={<PerfilPage />} />
+            </Route>
           </Route>
 
           {/* Rutas públicas de acceso */}
