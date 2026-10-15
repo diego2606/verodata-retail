@@ -94,7 +94,10 @@ export function claveGrupo(fila: CatalogoFila): string {
     if (key.toUpperCase() === 'SIZE') continue;
     atributos.push(`${key}=${value}`);
   }
-  atributos.sort();
+  // S2871: comparador explícito con locale fijo. Sin él, el orden dependería del
+  // código UTF-16 (acentos y mayúsculas fuera de sitio) y la clave del grupo
+  // dejaría de ser reproducible.
+  atributos.sort((a, b) => a.localeCompare(b, 'es'));
   const familia = fila.modelo && fila.modelo.trim() ? fila.modelo : fila.id;
   return `${familia}::${atributos.join('|')}`;
 }
@@ -133,13 +136,14 @@ export function agruparCatalogo(filas: CatalogoFila[]): ProductoPublico[] {
   const agrupadas: Array<{ ficha: ProductoPublico; creadoEn: number }> = [];
   for (const lista of grupos.values()) {
     // Representante: la variante con más stock; desempate por la más antigua.
+    // S6959: valor inicial explícito (la lista nunca está vacía: nace del Map).
     const representante = lista.reduce((mejor, actual) => {
       if (actual.stock_actual > mejor.stock_actual) return actual;
       if (actual.stock_actual === mejor.stock_actual && actual.creado_en < mejor.creado_en) {
         return actual;
       }
       return mejor;
-    });
+    }, lista[0]);
     const stockTotal = lista.reduce((suma, f) => suma + f.stock_actual, 0);
     agrupadas.push({
       ficha: aPublico(representante, stockTotal, lista.length),

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import {
   productRepository,
   ProductoRow,
@@ -412,7 +413,10 @@ export const productService = {
       const parsed = parseDataUrl(input.data);
       if (!parsed) return fallo('INVALID_FILE', 'El archivo enviado no es válido');
       try {
-        const nombre = `${productoId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${parsed.ext}`;
+        // Sonar S2245: el sufijo debe ser impredecible (nombre de objeto en
+        // Storage) => PRNG criptografico, no Math.random().
+        const sufijo = randomBytes(6).toString('hex');
+        const nombre = `${productoId}/${Date.now()}-${sufijo}.${parsed.ext}`;
         url = await subirImagenSupabase(parsed.buffer, parsed.contentType, nombre);
       } catch (error) {
         return fallo(

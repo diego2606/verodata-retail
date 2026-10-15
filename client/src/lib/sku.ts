@@ -36,7 +36,9 @@ export function generarSkuSugerido(parts: SkuParts): string {
   if (modelo) partes.push(modelo);
 
   if (parts.atributos) {
-    for (const key of Object.keys(parts.atributos).sort()) {
+    // S2871: comparador explícito; sin él el orden depende del código UTF-16 y el
+    // SKU sugerido deja de ser determinista entre entornos.
+    for (const key of Object.keys(parts.atributos).sort((a, b) => a.localeCompare(b, 'es'))) {
       const codigo = limpiar(parts.atributos[key] ?? '').slice(0, 3);
       if (codigo) partes.push(codigo);
     }

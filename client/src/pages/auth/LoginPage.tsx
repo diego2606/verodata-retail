@@ -282,7 +282,7 @@ export function LoginPage(): React.ReactElement {
         rol: json.data.usuario.rol as AuthUser['rol'],
       };
       login(json.data.token, authUser, recordar);
-      navigate('/admin/dashboard', { replace: true });
+      void navigate('/admin/dashboard', { replace: true }); // S9383: navigate() puede devolver promesa
     } catch (error) {
       setServerError(
         error instanceof ApiClientError

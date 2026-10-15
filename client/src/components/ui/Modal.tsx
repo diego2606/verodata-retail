@@ -15,7 +15,7 @@ export interface ModalProps {
 
 /**
  * Modal accesible: foco inicial, focus-trap (Tab/Shift+Tab), cierre con Esc,
- * restauración del foco al cerrar y cierre al hacer clic en el overlay.
+ * restauración del foco al cerrar y cierre al clicar fuera del panel.
  * Se renderiza solo cuando está abierto (montaje condicional).
  */
 export function Modal({
@@ -29,6 +29,8 @@ export function Modal({
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const closeOnOverlayClickRef = useRef(closeOnOverlayClick);
+  closeOnOverlayClickRef.current = closeOnOverlayClick;
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -65,9 +67,21 @@ export function Modal({
       }
     };
 
+    // S6848: el cierre al clicar fuera del panel se resuelve con un listener de
+    // documento, en lugar de un handler sobre el <div> del overlay (elemento no
+    // interactivo). Se usa un ref para no depender de props en la closure.
+    const handleMouseDown = (event: MouseEvent): void => {
+      if (!closeOnOverlayClickRef.current || !panel) return;
+      if (event.target instanceof Node && !panel.contains(event.target)) {
+        onCloseRef.current();
+      }
+    };
+
     document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleMouseDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleMouseDown);
       previouslyFocused?.focus();
     };
   }, []);
@@ -75,9 +89,6 @@ export function Modal({
   return (
     <div
       className={cn('fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-lg', overlayClassName)}
-      onMouseDown={event => {
-        if (closeOnOverlayClick && event.target === event.currentTarget) onCloseRef.current();
-      }}
     >
       <div
         ref={panelRef}

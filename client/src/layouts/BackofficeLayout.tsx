@@ -97,7 +97,7 @@ export function BackofficeLayout(): React.ReactElement {
 
   const handleLogout = (): void => {
     logout();
-    navigate('/login', { replace: true });
+    void navigate('/login', { replace: true }); // S9383: navigate() puede devolver promesa
   };
 
   const visibleItems = NAV_ITEMS.filter(

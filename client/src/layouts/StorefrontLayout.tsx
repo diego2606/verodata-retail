@@ -16,7 +16,9 @@ export function StorefrontLayout(): React.ReactElement {
   function buscar(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const query = busqueda.trim();
-    navigate(query ? `/catalogo?search=${encodeURIComponent(query)}` : '/catalogo');
+    // S9383: en react-router v7 navigate() puede devolver una promesa; `void`
+    // deja explícito que el fire-and-forget es intencional.
+    void navigate(query ? `/catalogo?search=${encodeURIComponent(query)}` : '/catalogo');
   }
 
   return (

@@ -19,6 +19,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT ?? 3000;
 
+// Sonar S5689: Express anuncia su version en la cabecera X-Powered-By. Se
+// desactiva para no revelar tecnologia ni version del stack.
+app.disable('x-powered-by');
+
 // Middlewares globales
 app.use(cors({ origin: process.env.CLIENT_URL ?? 'http://localhost:5173', credentials: true }));
 app.use(express.json({ limit: '12mb' }));
