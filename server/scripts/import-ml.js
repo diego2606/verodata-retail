@@ -1,15 +1,15 @@
 /**
  * Importador de catálogo desde Mercado Libre (MPE) → PostgreSQL + Supabase Storage.
  *
- * - Crea las categorías REALES de ML: 10 top-level + sus subcategorías (1 nivel),
- *   pero SOLO las que reciben al menos un producto con imagen.
- * - Trae productos del catálogo (nombre + foto reales), sube la imagen al bucket
- *   `productos` de Supabase Storage.
- * - Cada variante (color, talla, capacidad) se guarda como ficha propia con su SKU,
- *   pero se persiste `modelo` (family_name de ML) y `atributos` (JSONB) para agruparlas.
- * - Precio: real si viene; si no, estimado por categoría.
- * - VALIDA el producto: el nombre debe contener el sustantivo clave de la búsqueda
- *   y no ser accesorio/libro/llavero/etc.
+ * v2 — Organiza el catálogo en una TAXONOMÍA CURADA (departamentos) mapeando el
+ * árbol real de ML:
+ *   - Nivel 0 = departamentos de comprador (Hombre, Mujer, Niños, Tecnología, …).
+ *   - Nivel 1 = subcategorías reales de ML (recortadas).
+ *   - Los productos van a la hoja; las variantes (color/talla) se agrupan por `modelo`.
+ *
+ * Reglas:
+ *   - SOLO se importan productos CON imagen (filtro duro).
+ *   - Idempotente: no reimporta SKU ni combinación modelo+atributos existente.
  *
  * Env: ML_ACCESS_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_KEY
  *      RESET=1  → borra productos y categorías antes de importar
@@ -23,95 +23,40 @@ const ML_TOKEN = process.env.ML_ACCESS_TOKEN;
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const BUCKET = 'productos';
-const POR_BUSQUEDA = 5;
 const RESET = process.env.RESET === '1';
+const POR_SUB = 6; // productos por subcategoría
+const MAX_HIJOS = 10; // subcategorías por departamento
 
-/** top-level reales de ML (MPE) que usamos */
-const TOPS = [
-  { nombre: 'Computación', id: 'MPE1648' },
-  { nombre: 'Celulares y Teléfonos', id: 'MPE1051' },
-  { nombre: 'Electrónica, Audio y Video', id: 'MPE1000' },
-  { nombre: 'Hogar, Muebles y Jardín', id: 'MPE1574' },
-  { nombre: 'Electrodomésticos', id: 'MPE1575' },
-  { nombre: 'Ropa y Accesorios', id: 'MPE1430' },
-  { nombre: 'Deportes y Fitness', id: 'MPE1276' },
-  { nombre: 'Belleza y Cuidado Personal', id: 'MPE1246' },
-  { nombre: 'Juegos y Juguetes', id: 'MPE1132' },
-  { nombre: 'Consolas y Videojuegos', id: 'MPE1144' },
+/** Departamento = regla de mapeo desde una categoría top de ML. */
+const FUENTES = [
+  // Ropa y Accesorios → se reparte por GÉNERO (Hombre/Mujer/Niños)
+  { top: 'MPE1430', tipo: 'moda' },
+  { top: 'MPE1051', dep: 'Tecnología', seccion: 'Celulares y Smartphones' },
+  { top: 'MPE1648', dep: 'Tecnología', seccion: 'Computación' },
+  { top: 'MPE1000', dep: 'Tecnología', seccion: 'Electrónica, Audio y Video' },
+  { top: 'MPE1144', dep: 'Tecnología', seccion: 'Consolas y Videojuegos' },
+  { top: 'MPE1574', dep: 'Hogar', porHijo: true },
+  { top: 'MPE1575', dep: 'Hogar', seccion: 'Electrodomésticos' },
+  { top: 'MPE1276', dep: 'Deportes y Fitness', porHijo: true },
+  { top: 'MPE1246', dep: 'Belleza y Cuidado Personal', porHijo: true },
+  { top: 'MPE1132', dep: 'Juegos y Juguetes', porHijo: true },
 ];
 
-/** búsqueda → top-level + subcategoría (deben existir en ML) + sustantivo clave */
-const QUERIES = [
-  { q: 'zapatillas nike', top: 'Deportes y Fitness', sub: 'Zapatillas', noun: 'zapatill' },
-  { q: 'zapatillas adidas', top: 'Deportes y Fitness', sub: 'Zapatillas', noun: 'zapatill' },
-  { q: 'zapatillas puma', top: 'Deportes y Fitness', sub: 'Zapatillas', noun: 'zapatill' },
-  { q: 'zapatillas reebok', top: 'Deportes y Fitness', sub: 'Zapatillas', noun: 'zapatill' },
-  { q: 'zapatillas vans', top: 'Deportes y Fitness', sub: 'Zapatillas', noun: 'zapatill' },
-  { q: 'zapatillas converse', top: 'Deportes y Fitness', sub: 'Zapatillas', noun: 'zapatill' },
-  { q: 'balon de futbol', top: 'Deportes y Fitness', sub: 'Fútbol', noun: 'balon' },
-  { q: 'mancuernas', top: 'Deportes y Fitness', sub: 'Fitness y Musculación', noun: 'mancuern' },
-  { q: 'bicicleta', top: 'Deportes y Fitness', sub: 'Ciclismo', noun: 'bicicleta' },
-  { q: 'polo nike', top: 'Ropa y Accesorios', sub: 'Polos', noun: 'polo' },
-  { q: 'short adidas', top: 'Ropa y Accesorios', sub: 'Shorts', noun: 'short' },
-  { q: 'casaca puma', top: 'Ropa y Accesorios', sub: 'Abrigos', noun: 'casaca' },
-  { q: 'buzo adidas', top: 'Ropa y Accesorios', sub: 'Ropa Deportiva', noun: 'buzo' },
-  { q: 'mochila nike', top: 'Ropa y Accesorios', sub: 'Equipaje, Bolsos y Carteras', noun: 'mochila' },
-  { q: 'gorra adidas', top: 'Ropa y Accesorios', sub: 'Accesorios de Moda', noun: 'gorra' },
-  { q: 'lentes de sol', top: 'Ropa y Accesorios', sub: 'Accesorios de Moda', noun: 'lente' },
-  { q: 'iphone', top: 'Celulares y Teléfonos', sub: 'Celulares y Smartphones', noun: 'iphone' },
-  { q: 'samsung galaxy', top: 'Celulares y Teléfonos', sub: 'Celulares y Smartphones', noun: 'samsung' },
-  { q: 'xiaomi redmi', top: 'Celulares y Teléfonos', sub: 'Celulares y Smartphones', noun: 'xiaomi' },
-  { q: 'motorola moto g', top: 'Celulares y Teléfonos', sub: 'Celulares y Smartphones', noun: 'motorola' },
-  { q: 'notebook hp', top: 'Computación', sub: 'Laptops y Accesorios', noun: 'notebook' },
-  { q: 'macbook', top: 'Computación', sub: 'Laptops y Accesorios', noun: 'macbook' },
-  { q: 'notebook lenovo', top: 'Computación', sub: 'Laptops y Accesorios', noun: 'notebook' },
-  { q: 'notebook asus', top: 'Computación', sub: 'Laptops y Accesorios', noun: 'notebook' },
-  { q: 'monitor lg', top: 'Computación', sub: 'Monitores y Accesorios', noun: 'monitor' },
-  { q: 'monitor samsung', top: 'Computación', sub: 'Monitores y Accesorios', noun: 'monitor' },
-  { q: 'monitor asus', top: 'Computación', sub: 'Monitores y Accesorios', noun: 'monitor' },
-  { q: 'televisor lg', top: 'Electrónica, Audio y Video', sub: 'TVs', noun: 'televisor' },
-  { q: 'televisor samsung', top: 'Electrónica, Audio y Video', sub: 'TVs', noun: 'televisor' },
-  { q: 'televisor sony', top: 'Electrónica, Audio y Video', sub: 'TVs', noun: 'televisor' },
-  { q: 'audifonos sony', top: 'Electrónica, Audio y Video', sub: 'Audio', noun: 'audifon' },
-  { q: 'parlante jbl', top: 'Electrónica, Audio y Video', sub: 'Audio', noun: 'parlante' },
-  { q: 'airpods', top: 'Electrónica, Audio y Video', sub: 'Audio', noun: 'airpod' },
-  { q: 'audifonos bose', top: 'Electrónica, Audio y Video', sub: 'Audio', noun: 'audifon' },
-  { q: 'licuadora', top: 'Electrodomésticos', sub: 'Pequeños Electrodomésticos', noun: 'licuadora' },
-  { q: 'cafetera', top: 'Electrodomésticos', sub: 'Pequeños Electrodomésticos', noun: 'cafetera' },
-  { q: 'freidora de aire', top: 'Electrodomésticos', sub: 'Cocción', noun: 'freidora' },
-  { q: 'aspiradora', top: 'Electrodomésticos', sub: 'Pequeños Electrodomésticos', noun: 'aspiradora' },
-  { q: 'secadora de cabello', top: 'Belleza y Cuidado Personal', sub: 'Artefactos para el Cabello', noun: 'secadora' },
-  { q: 'plancha de cabello', top: 'Belleza y Cuidado Personal', sub: 'Artefactos para el Cabello', noun: 'plancha' },
-  { q: 'perfume', top: 'Belleza y Cuidado Personal', sub: 'Perfumes y Colonias', noun: 'perfume' },
-  { q: 'lego', top: 'Juegos y Juguetes', sub: 'Juegos de Construcción', noun: 'lego' },
-  { q: 'peluche', top: 'Juegos y Juguetes', sub: 'Peluches', noun: 'peluche' },
-  { q: 'playstation 5', top: 'Consolas y Videojuegos', sub: 'Consolas', noun: 'playstation' },
-  { q: 'nintendo switch', top: 'Consolas y Videojuegos', sub: 'Consolas', noun: 'nintendo' },
-  { q: 'control xbox', top: 'Consolas y Videojuegos', sub: 'Accesorios para Consolas', noun: 'control xbox' },
-  { q: 'sillon', top: 'Hogar, Muebles y Jardín', sub: 'Muebles para el Hogar', noun: 'sill' },
-  { q: 'mesa de comedor', top: 'Hogar, Muebles y Jardín', sub: 'Muebles para el Hogar', noun: 'mesa' },
-];
-
+/** Rango de precio referencial por departamento (cuando ML no da precio real). */
 const RANGOS_PRECIO = {
-  Computación: [1499, 7999],
-  'Celulares y Teléfonos': [799, 5499],
-  'Electrónica, Audio y Video': [149, 4999],
-  'Hogar, Muebles y Jardín': [199, 3999],
-  Electrodomésticos: [129, 2499],
-  'Ropa y Accesorios': [49, 599],
-  'Deportes y Fitness': [99, 999],
-  'Belleza y Cuidado Personal': [39, 899],
-  'Juegos y Juguetes': [39, 599],
-  'Consolas y Videojuegos': [199, 3499],
+  Mujer: [39, 399],
+  Hombre: [39, 499],
+  'Niños y Bebés': [29, 299],
+  Tecnología: [199, 6999],
+  Hogar: [99, 3999],
+  'Deportes y Fitness': [49, 999],
+  'Belleza y Cuidado Personal': [29, 799],
+  'Juegos y Juguetes': [29, 499],
+  Accesorios: [29, 399],
 };
 
-const BASURA = [
-  'funda', 'case', 'cable', 'cargador', 'protector', 'adaptador', 'libro', 'guia', 'guía',
-  'sticker', 'repuesto', 'forro', 'mica', 'correa', 'manual', 'tapa', 'pelicula', 'película',
-  'soporte', 'organizador', 'llavero', 'llaveros', 'globo', 'almohada', 'puff', 'revista',
-  'molde', 'papel', 'contenedor', 'dispensador', 'sombrilla', 'saco', 'decorativo', 'souvenir',
-  'figura', 'adorno', 'juguete para mascota',
-];
+const ATRIBUTOS_VARIANTE = ['COLOR', 'SIZE', 'CAPACITY', 'STORAGE_CAPACITY', 'MODEL', 'GENDER', 'LINE'];
+const CLAVES_VARIANTE = ['COLOR', 'SIZE', 'CAPACITY', 'STORAGE_CAPACITY', 'MODEL'];
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -125,7 +70,6 @@ const pool = new Pool({
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const cache = new Map();
-/** Evita importar dos veces la misma combinación modelo + atributos. */
 const variantesVistas = new Set();
 
 function hash(text) {
@@ -134,23 +78,45 @@ function hash(text) {
   return Math.abs(h);
 }
 
-function slugify(s) {
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-}
-
 const sinAcentos = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-/** Atributos que distinguen variantes; se guardan en `productos.atributos`. */
-const ATRIBUTOS_VARIANTE = ['COLOR', 'SIZE', 'CAPACITY', 'STORAGE_CAPACITY', 'MODEL', 'GENDER', 'LINE'];
+function slugify(s) {
+  return (s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
 
-/** Subconjunto que identifica de forma única a la variante (dedupe). */
-const CLAVES_VARIANTE = ['COLOR', 'SIZE', 'CAPACITY', 'STORAGE_CAPACITY', 'MODEL'];
+const limpiarNombre = (n) => (n || 'Producto').replace(/\s+/g, ' ').trim().slice(0, 150);
 
-const claveVariante = (at) =>
-  CLAVES_VARIANTE.map((k) => sinAcentos(at[k] || '').replace(/\s+/g, ' ').trim()).join('|');
+/** Nombre de sección sin el género repetido: "Ropa de Hombre" → "Ropa". */
+function limpiarSeccion(nombre) {
+  const limpio = nombre.replace(/\s+de\s+(hombre|mujer|ni[nñ]os?|beb[eé]s?)\s*$/i, '').trim();
+  return (limpio || nombre).slice(0, 100);
+}
 
-/** Atributos de variante del producto según la API de ML: { COLOR: 'Negro', SIZE: 'M', … } */
+function destinoModa(nombreHijo) {
+  const n = sinAcentos(nombreHijo);
+  if (n.includes('hombre')) return 'Hombre';
+  if (n.includes('mujer')) return 'Mujer';
+  if (n.includes('nin') || n.includes('bebe')) return 'Niños y Bebés';
+  return 'Accesorios';
+}
+
+/** Resuelve el destino (departamento › sección) para un hijo de ML. */
+function resolverDestino(fuente, nombreHijo) {
+  if (fuente.tipo === 'moda') {
+    return { departamento: destinoModa(nombreHijo), seccion: limpiarSeccion(nombreHijo) };
+  }
+  if (fuente.porHijo) {
+    return { departamento: fuente.dep, seccion: limpiarSeccion(nombreHijo) };
+  }
+  return { departamento: fuente.dep, seccion: fuente.seccion };
+}
+
 function extraerAtributos(detalle) {
   const out = {};
   for (const a of detalle.attributes || []) {
@@ -161,7 +127,9 @@ function extraerAtributos(detalle) {
   return out;
 }
 
-/** Fallback cuando ML no da family_name: nombre sin los valores de sus atributos. */
+const claveVariante = (at) =>
+  CLAVES_VARIANTE.map((k) => sinAcentos(at[k] || '').replace(/\s+/g, ' ').trim()).join('|');
+
 function modeloFallback(nombre, atributos) {
   let x = ` ${sinAcentos(nombre).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ')} `;
   for (const v of Object.values(atributos)) {
@@ -171,10 +139,8 @@ function modeloFallback(nombre, atributos) {
   return x.trim().replace(/\s+/g, ' ');
 }
 
-const limpiarNombre = (n) => (n || 'Producto').replace(/\s+/g, ' ').trim().slice(0, 150);
-const esBasura = (n) => { const x = n.toLowerCase(); return BASURA.some((p) => x.includes(p)); };
-const precioEstimado = (cat, sku) => {
-  const [min, max] = RANGOS_PRECIO[cat] || [99, 999];
+const precioEstimado = (dep, sku) => {
+  const [min, max] = RANGOS_PRECIO[dep] || [49, 999];
   return Math.max(9.9, Math.round((min + (hash(sku) % (max - min))) / 10) * 10 - 0.1);
 };
 
@@ -195,15 +161,21 @@ async function mlGet(pathname, intentos = 5) {
   throw new Error(`ML ${pathname} -> 429`);
 }
 
-async function ensureCategoria(nombre, padreId) {
-  const key = `${padreId ?? 'T'}:${nombre}`;
+/**
+ * Crea (si no existe) una categoría con un slug único por ruta.
+ * `slugPadre` evita colisiones entre "Ropa" de varios departamentos.
+ */
+async function ensureCategoria(nombre, padreId, slugPadre) {
+  const slug = slugPadre ? `${slugPadre}-${slugify(nombre)}` : slugify(nombre);
+  const key = `c:${padreId ?? 'T'}:${slug}`;
   if (cache.has(key)) return cache.get(key);
+
   await pool.query(
     `INSERT INTO categorias (nombre, slug, descripcion, categoria_padre_id)
-     VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-    [nombre, slugify(nombre), `Categoría ${nombre}`, padreId]
+     VALUES ($1, $2, $3, $4) ON CONFLICT (slug) DO NOTHING`,
+    [nombre, slug, `Categoría ${nombre}`, padreId]
   );
-  const r = await pool.query('SELECT id FROM categorias WHERE nombre = $1', [nombre]);
+  const r = await pool.query('SELECT id FROM categorias WHERE slug = $1 LIMIT 1', [slug]);
   const id = r.rows[0] ? r.rows[0].id : null;
   cache.set(key, id);
   return id;
@@ -219,53 +191,39 @@ async function subirImagen(buffer, contentType, nombreArchivo) {
   return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${nombreArchivo}`;
 }
 
-async function importarBusqueda({ q, top, sub, noun }, subsMap) {
-  const mlSubId = subsMap.get(`${top}|${sub}`);
-  if (!mlSubId) {
-    console.warn(`  ! subcategoría "${sub}" no encontrada en ${top}`);
-    return 0;
-  }
-
+/** Importa los productos de una subcategoría de ML dentro de (departamento › sección). */
+async function importarCategoria(departamento, seccion, mlCatId) {
   const search = await mlGet(
-    `/products/search?site_id=MPE&q=${encodeURIComponent(q)}&category=${mlSubId}&limit=20`
+    `/products/search?site_id=MPE&category=${mlCatId}&limit=20`
   );
   const conImagen = (search.results || []).filter((r) => (r.pictures || []).length > 0);
+  if (conImagen.length === 0) return 0;
 
+  let depId = null;
+  let depSlug = null;
+  let secId = null;
   let importados = 0;
   let considerados = 0;
-  let topId = null;
-  let subId = null;
 
   for (const r of conImagen) {
-    if (considerados >= POR_BUSQUEDA) break;
-
-    const nombre = limpiarNombre(r.name);
-    // VALIDACIÓN: sustantivo clave presente y no es accesorio/basura
-    if (!sinAcentos(nombre).includes(noun) || esBasura(nombre)) continue;
+    if (considerados >= POR_SUB) break;
     considerados++;
 
     try {
       const detalle = await mlGet(`/products/${r.id}`);
-
-      // Agrupación de variantes: modelo (familia) + atributos propios
       const atributos = extraerAtributos(detalle);
       const familia = (detalle.family_name || '').trim();
-      const modelo = familia ? limpiarNombre(familia) : modeloFallback(nombre, atributos);
+      const modelo = familia ? limpiarNombre(familia) : modeloFallback(limpiarNombre(r.name), atributos);
       const clave = `${modelo.toLowerCase()}::${claveVariante(atributos)}`;
       if (variantesVistas.has(clave)) continue;
       variantesVistas.add(clave);
 
-      const precioReal = detalle.buy_box_winner && detalle.buy_box_winner.price;
       const sku = `ML-${r.id}`;
-
-      // Reimportación barata: si ya existe el SKU o la misma variante, no se toca la imagen.
       const yaExiste = await pool.query(
         `SELECT 1 FROM productos WHERE sku = $1 OR (modelo = $2 AND atributos = $3::jsonb) LIMIT 1`,
         [sku, modelo, JSON.stringify(atributos)]
       );
       if (yaExiste.rows[0]) continue;
-
-      const precio = precioReal || precioEstimado(top, sku);
 
       const pic = (detalle.pictures && detalle.pictures[0]) || r.pictures[0];
       const imageUrl = pic.secure_url || pic.url;
@@ -278,18 +236,29 @@ async function importarBusqueda({ q, top, sub, noun }, subsMap) {
       const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
       const publicUrl = await subirImagen(buffer, contentType, `${sku}.${ext}`);
 
-      // Crear categorías SOLO cuando hay un producto válido
-      if (topId === null) topId = await ensureCategoria(top, null);
-      if (subId === null) subId = await ensureCategoria(sub, topId);
+      // Crear la estructura (solo cuando hay al menos un producto válido)
+      if (depId === null) {
+        depId = await ensureCategoria(departamento, null, null);
+        depSlug = slugify(departamento);
+      }
+      if (secId === null) secId = await ensureCategoria(seccion, depId, depSlug);
+
+      const precioReal = detalle.buy_box_winner && detalle.buy_box_winner.price;
+      const precio = precioReal || precioEstimado(departamento, sku);
 
       const ins = await pool.query(
         `INSERT INTO productos (categoria_id, sku, nombre, descripcion, precio_regular, precio_oferta, imagen_url, modelo, atributos)
          VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8::jsonb)
          ON CONFLICT DO NOTHING RETURNING id`,
         [
-          subId, sku, nombre,
+          secId,
+          sku,
+          limpiarNombre(r.name),
           'Producto importado del catálogo de Mercado Libre (precio referencial).',
-          precio, publicUrl, modelo.slice(0, 255), JSON.stringify(atributos),
+          precio,
+          publicUrl,
+          modelo.slice(0, 255),
+          JSON.stringify(atributos),
         ]
       );
 
@@ -301,12 +270,12 @@ async function importarBusqueda({ q, top, sub, noun }, subsMap) {
         );
         importados++;
         const variante = claveVariante(atributos).replace(/\|+$/, '').replace(/\|/g, ' / ') || '-';
-        console.log(`  + ${sku} | ${nombre.slice(0, 45)} | S/ ${precio} | ${variante}`);
+        console.log(`  + ${departamento} › ${seccion} | ${sku} | S/ ${precio} | ${variante}`);
       }
     } catch (err) {
       console.warn(`  ! ${r.id}: ${err.message}`);
     }
-    await sleep(250);
+    await sleep(200);
   }
   return importados;
 }
@@ -322,35 +291,33 @@ async function main() {
     await pool.query('DELETE FROM categorias');
   }
 
-  // Mapa de subcategorías reales de ML: "Top|Sub" -> id
-  console.log('Leyendo árbol de categorías de ML…');
-  const subsMap = new Map();
-  for (const top of TOPS) {
-    const det = await mlGet(`/categories/${top.id}`);
-    for (const h of det.children_categories || []) {
-      subsMap.set(`${top.nombre}|${h.name}`, h.id);
-    }
-    await sleep(250);
-  }
-
-  console.log(`\nImportando ${QUERIES.length} búsquedas validadas…\n`);
   let total = 0;
-  for (const item of QUERIES) {
-    console.log(`• ${item.q} → ${item.top} › ${item.sub}`);
+  for (const fuente of FUENTES) {
+    console.log(`\n▸ Departamento desde ML ${fuente.top}`);
+    let det;
     try {
-      total += await importarBusqueda(item, subsMap);
+      det = await mlGet(`/categories/${fuente.top}`);
     } catch (err) {
-      console.warn(`  ! "${item.q}" omitida: ${err.message}`);
+      console.warn(`  ! categoría ${fuente.top}: ${err.message}`);
+      continue;
     }
-    await sleep(1200);
+    const hijos = (det.children_categories || []).slice(0, MAX_HIJOS);
+    for (const hijo of hijos) {
+      const { departamento, seccion } = resolverDestino(fuente, hijo.name);
+      console.log(`• ${departamento} › ${seccion}  (ML ${hijo.id})`);
+      try {
+        total += await importarCategoria(departamento, seccion, hijo.id);
+      } catch (err) {
+        console.warn(`  ! "${hijo.name}" omitida: ${err.message}`);
+      }
+      await sleep(400);
+    }
   }
 
   const p = await pool.query('SELECT COUNT(*) c FROM productos');
   const c = await pool.query('SELECT COUNT(*) c FROM categorias');
   const t = await pool.query('SELECT COUNT(*) c FROM categorias WHERE categoria_padre_id IS NULL');
-  const m = await pool.query('SELECT COUNT(DISTINCT modelo) c FROM productos WHERE modelo IS NOT NULL');
-  console.log(`\n✅ Importados ${total}. Productos: ${p.rows[0].c} | Categorías: ${c.rows[0].c} (top-level: ${t.rows[0].c})`);
-  console.log(`   Modelos (familias): ${m.rows[0].c} → ${p.rows[0].c - m.rows[0].c} variantes adicionales con SKU propio`);
+  console.log(`\n✅ Importados ${total}. Productos: ${p.rows[0].c} | Categorías: ${c.rows[0].c} (departamentos: ${t.rows[0].c})`);
   await pool.end();
 }
 
