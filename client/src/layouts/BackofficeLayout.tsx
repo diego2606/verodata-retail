@@ -14,6 +14,7 @@ import {
   X,
   ChevronRight,
   LayoutTemplate,
+  ListTree,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Catálogo',   href: '/admin/products',   icon: Package },
   { label: 'Categorías', href: '/admin/categories', icon: Tags },
   { label: 'Colores',    href: '/admin/colors',     icon: Palette },
+  { label: 'Atributos',  href: '/admin/attributes', icon: ListTree },
   { label: 'Inventario', href: '/admin/inventory',  icon: Warehouse },
   { label: 'Contenido',  href: '/admin/contenido',  icon: LayoutTemplate },
   { label: 'Pedidos',    href: '/admin/orders',     icon: ShoppingCart },
@@ -47,6 +49,7 @@ const SECTION_LABELS: Record<string, string> = {
   products: 'Catálogo',
   categories: 'Categorías',
   colors: 'Colores',
+  attributes: 'Atributos',
   inventory: 'Inventario',
   contenido: 'Contenido',
   orders: 'Pedidos',
